@@ -31,42 +31,66 @@ class MiniMaxSpeechAPI:
             "dm_narrator": {
                 "voice_id": "English_Trustworth_Man",
                 "description": "📖 Wise Dungeon Master - Deep, commanding voice",
-                "personality": "Authoritative storyteller"
+                "personality": "Authoritative storyteller",
+                "speed": 0.9,
+                "pitch": -2,
+                "vol": 1.0
             },
             "dwarf_warrior": {
                 "voice_id": "English_ManWithDeepVoice", 
                 "description": "⚔️ Gruff Dwarf Warrior - Bold, battle-hardened",
-                "personality": "Fierce and loyal"
+                "personality": "Fierce and loyal",
+                "speed": 1.1,
+                "pitch": -5,
+                "vol": 1.2
             },
             "elf_mage": {
                 "voice_id": "English_Graceful_Lady",
                 "description": "✨ Elegant Elf Mage - Mystical and wise", 
-                "personality": "Graceful and knowledgeable"
+                "personality": "Graceful and knowledgeable",
+                "speed": 0.8,
+                "pitch": 3,
+                "vol": 0.9
             },
             "human_rogue": {
                 "voice_id": "English_PlayfulGirl",
                 "description": "🗡️ Cunning Human Rogue - Quick and clever",
-                "personality": "Witty and sneaky"
+                "personality": "Witty and sneaky",
+                "speed": 1.2,
+                "pitch": 1,
+                "vol": 1.0
             },
             "dragon": {
                 "voice_id": "English_Deep-VoicedGentleman",
                 "description": "🐉 Ancient Dragon - Deep, terrifying voice",
-                "personality": "Ancient and powerful"
+                "personality": "Ancient and powerful",
+                "speed": 0.7,
+                "pitch": -8,
+                "vol": 1.3
             },
             "fairy_companion": {
                 "voice_id": "English_WhimsicalGirl",
                 "description": "🧚‍♀️ Cheerful Fairy - Light and magical",
-                "personality": "Playful and helpful"
+                "personality": "Playful and helpful",
+                "speed": 1.3,
+                "pitch": 8,
+                "vol": 0.8
             },
             "orc_villain": {
                 "voice_id": "English_PassionateWarrior",
                 "description": "⚔️ Fierce Orc Villain - Menacing and brutal",
-                "personality": "Aggressive and threatening"
+                "personality": "Aggressive and threatening",
+                "speed": 1.0,
+                "pitch": -6,
+                "vol": 1.1
             },
             "wise_elder": {
                 "voice_id": "English_WiseScholar",
                 "description": "📚 Wise Elder - Ancient knowledge keeper",
-                "personality": "Wise and patient"
+                "personality": "Wise and patient",
+                "speed": 0.8,
+                "pitch": -1,
+                "vol": 0.9
             }
         }
     
@@ -97,10 +121,9 @@ class MiniMaxSpeechAPI:
                 "text": enhanced_text,
                 "voice_setting": {
                     "voice_id": voice_id,
-                    "speed": 1.0,
-                    "vol": 1.0,
-                    "pitch": 0,
-                    "emotion": "neutral"
+                    "speed": voice_config.get("speed", 1.0),
+                    "vol": voice_config.get("vol", 1.0),
+                    "pitch": voice_config.get("pitch", 0)
                 },
                 "audio_setting": {
                     "sample_rate": 32000,
@@ -216,30 +239,46 @@ class MiniMaxSpeechAPI:
         }
     
     def _enhance_text_for_character(self, text: str, character_type: str) -> str:
-        """Enhance text with D&D character personality"""
+        """Enhance text with D&D character personality - REMOVED commanding authority from all characters"""
         
         character_enhancements = {
-            "dm_narrator": "*The Dungeon Master speaks with commanding authority*\n\n",
-            "dwarf_warrior": "*strokes beard with a gruff voice*\n\n",
-            "elf_mage": "*speaks with ethereal wisdom*\n\n",
-            "human_rogue": "*speaks with sly humor*\n\n", 
-            "dragon": "*voice rumbles like distant thunder*\n\n",
-            "fairy_companion": "*giggles with magical chimes*\n\n",
-            "orc_villain": "*snarls menacingly*\n\n",
-            "wise_elder": "*speaks with ancient wisdom*\n\n"
+            "dm_narrator": "",  # Clean DM voice without unnecessary prefixes
+            "dwarf_warrior": "",  # Let the voice parameters handle personality
+            "elf_mage": "",
+            "human_rogue": "", 
+            "dragon": "",
+            "fairy_companion": "",
+            "orc_villain": "",
+            "wise_elder": ""
         }
         
-        prefix = character_enhancements.get(character_type, "")
+        # Apply character speech patterns ONLY, not personality prefixes
+        enhanced_text = text
         
-        # Apply character speech patterns
         if character_type == "dwarf_warrior":
-            text = text.replace("you", "ye").replace("your", "yer")
+            # Add Scottish-like speech patterns
+            enhanced_text = enhanced_text.replace("you", "ye").replace("your", "yer").replace("my", "me")
+            enhanced_text = enhanced_text.replace("going", "goin'").replace("nothing", "nothin'")
         elif character_type == "elf_mage":
-            text = text.replace("magic", "ancient magic").replace("spell", "mystical spell")
+            # Add formal, mystical speech
+            enhanced_text = enhanced_text.replace("magic", "ancient magics").replace("spell", "mystical enchantment")
+            enhanced_text = enhanced_text.replace("I see", "I perceive").replace("look", "observe")
+        elif character_type == "human_rogue":
+            # Add casual, street-smart speech
+            enhanced_text = enhanced_text.replace("expensive", "pricey").replace("dangerous", "risky")
+            enhanced_text = enhanced_text.replace("I think", "I reckon").replace("maybe", "perhaps")
         elif character_type == "orc_villain":
-            text = text.replace("!", " GRAAHHH!").replace("attack", "CRUSH")
+            # Add aggressive speech patterns
+            enhanced_text = enhanced_text.replace("attack", "CRUSH").replace("fight", "BATTLE")
+            enhanced_text = enhanced_text.upper() if len(enhanced_text) < 50 else enhanced_text
+        elif character_type == "wise_elder":
+            # Add formal, wise speech
+            enhanced_text = enhanced_text.replace("I think", "In my experience").replace("you should", "it would be wise to")
+        elif character_type == "fairy_companion":
+            # Add cheerful, magical speech
+            enhanced_text = enhanced_text.replace("great", "wonderful").replace("good", "marvelous")
         
-        return f"{prefix}{text}"
+        return enhanced_text
     
     async def _fallback_response(
         self, 
