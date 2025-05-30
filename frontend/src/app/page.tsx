@@ -255,7 +255,7 @@ export default function Home() {
       }
     }
     
-    return (
+  return (
       <div className="mt-2 p-2 bg-black/40 rounded-lg border border-purple-500/30">
         <audio
           ref={audioRef}

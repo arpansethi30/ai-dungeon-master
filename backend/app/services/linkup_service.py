@@ -21,6 +21,48 @@ class LinkupDnDService:
         self.client = LinkupClient(api_key=self.api_key)
         self.cache = {}  # Simple cache for frequently requested content
         
+    def _parse_linkup_response(self, response) -> tuple[str, list]:
+        """
+        Helper method to parse Linkup client response consistently
+        """
+        answer = ""
+        sources = []
+        
+        if hasattr(response, 'answer'):
+            answer = response.answer
+        elif hasattr(response, 'content'):
+            answer = response.content
+        elif isinstance(response, dict):
+            answer = response.get("answer", "")
+        else:
+            answer = str(response)
+        
+        if hasattr(response, 'sources'):
+            raw_sources = response.sources if response.sources else []
+            # Convert source objects to dictionaries
+            for source in raw_sources:
+                if hasattr(source, '__dict__'):
+                    # Convert object to dict
+                    source_dict = {
+                        'name': getattr(source, 'name', getattr(source, 'title', 'Unknown Source')),
+                        'url': getattr(source, 'url', getattr(source, 'link', '#')),
+                        'snippet': getattr(source, 'snippet', getattr(source, 'content', ''))[:200]
+                    }
+                    sources.append(source_dict)
+                elif isinstance(source, dict):
+                    sources.append(source)
+                else:
+                    # Fallback for unknown source format
+                    sources.append({
+                        'name': str(source),
+                        'url': '#',
+                        'snippet': str(source)[:200]
+                    })
+        elif isinstance(response, dict):
+            sources = response.get("sources", [])
+        
+        return answer, sources
+
     async def search_dnd_rules(self, query: str, context: str = "") -> Dict[str, Any]:
         """
         🎲 Search for D&D rules and mechanics with context
@@ -35,11 +77,13 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
                 "query": query,
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "answer": answer,
+                "sources": sources,
                 "timestamp": datetime.now().isoformat(),
                 "type": "rules_lookup"
             }
@@ -64,10 +108,12 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "answer": answer,
+                "sources": sources,
                 "challenge_rating": challenge_rating,
                 "environment": environment,
                 "timestamp": datetime.now().isoformat(),
@@ -93,10 +139,12 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "answer": answer,
+                "sources": sources,
                 "spell_name": spell_name,
                 "spell_level": spell_level,
                 "character_class": character_class,
@@ -123,10 +171,12 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "answer": answer,
+                "sources": sources,
                 "item_type": item_type,
                 "rarity": rarity,
                 "timestamp": datetime.now().isoformat(),
@@ -152,10 +202,12 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "answer": answer,
+                "sources": sources,
                 "theme": theme,
                 "setting": setting,
                 "timestamp": datetime.now().isoformat(),
@@ -181,10 +233,12 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "answer": answer,
+                "sources": sources,
                 "timestamp": datetime.now().isoformat(),
                 "type": "dnd_news"
             }
@@ -209,11 +263,13 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
                 "original_scene": scene_description,
-                "enhanced_content": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "enhanced_content": answer,
+                "sources": sources,
                 "party_level": party_level,
                 "timestamp": datetime.now().isoformat(),
                 "type": "scene_enhancement"
@@ -239,12 +295,14 @@ class LinkupDnDService:
                 output_type="sourcedAnswer"
             )
             
+            answer, sources = self._parse_linkup_response(response)
+            
             return {
                 "success": True,
                 "character_class": character_class,
                 "level": level,
-                "build_advice": response.get("answer", ""),
-                "sources": response.get("sources", []),
+                "build_advice": answer,
+                "sources": sources,
                 "timestamp": datetime.now().isoformat(),
                 "type": "character_build"
             }

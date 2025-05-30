@@ -12,7 +12,7 @@ import logging
 from app.services.linkup_service import linkup_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/linkup", tags=["linkup"])
+router = APIRouter(tags=["linkup"])
 
 # Request Models
 class RulesLookupRequest(BaseModel):
