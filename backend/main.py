@@ -40,6 +40,9 @@ from app.services.apify_integration import (
     scrape_dnd_lore, scrape_monsters, scrape_campaign_inspiration, test_apify_integration
 )
 
+# Include Multiplayer API
+from app.api import multiplayer
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Chronicles of AI - Agentic AI D&D System",
@@ -1201,6 +1204,9 @@ async def serve_minimax_audio(filename: str):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error serving audio: {str(e)}")
+
+# Register API routers - Remove invalid imports, keep only working ones
+app.include_router(multiplayer.router, prefix="/api/multiplayer", tags=["multiplayer"])
 
 if __name__ == "__main__":
     print("🤖 Starting Chronicles of AI - Agentic AI D&D System...")

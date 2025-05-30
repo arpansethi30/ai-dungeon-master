@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 interface Message {
   id: string
@@ -439,6 +442,58 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Voice Testing */}
+          <Card className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 border-purple-500/30 hover:border-purple-400/50 transition-all">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                🎭 Test Voices
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-300 mb-4">Test MiniMax Speech-02 HD voices for D&D characters</p>
+              <Button 
+                onClick={() => setShowVoiceTest(true)}
+                className="w-full bg-purple-600 hover:bg-purple-700"
+              >
+                🎤 Test Character Voices
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* NEW: Multiplayer D&D */}
+          <Card className="bg-gradient-to-br from-green-500/20 to-blue-500/20 border-green-500/30 hover:border-green-400/50 transition-all">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                🎮 Multiplayer D&D
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-300 mb-4">Play with AI companions in voice-enabled sessions</p>
+              <Link href="/multiplayer">
+                <Button className="w-full bg-green-600 hover:bg-green-700">
+                  ⚔️ Start Epic Adventure!
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Character Creation */}
+          <Card className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 hover:border-blue-400/50 transition-all">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                🧙‍♂️ Create Character
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-300 mb-4">Create your unique D&D character with AI assistance</p>
+              <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                ✨ Create Character
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
           {/* Character Sheet */}
