@@ -1,0 +1,98 @@
+# =============================================================================
+# AI DUNGEON MASTER - HACKATHON CONFIGURATION
+# =============================================================================
+
+# MANDATORY: Anthropic Claude (Required for hackathon)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# SPONSOR INTEGRATIONS FOR PRIZES ($15,000+ potential value)
+# =============================================================================
+
+# 🏆 Auth0 Integration (Ray-Ban Glasses Prize - $300 value)
+AUTH0_DOMAIN=your_auth0_domain_here
+AUTH0_CLIENT_ID=your_auth0_client_id_here
+AUTH0_CLIENT_SECRET=your_auth0_client_secret_here
+AUTH0_AUDIENCE=your_auth0_audience_here
+
+# 🏆 MiniMax Audio Integration ($2,750 cash prize + Ray-Ban glasses)
+# OFFICIAL MINIMAX MCP SERVER: https://github.com/MiniMax-AI/MiniMax-MCP
+# GET YOUR API KEY: https://www.minimax.chat/ OR https://platform.minimaxi.com/
+
+# IMPORTANT: API key and host must match by region
+# Global Region:
+MINIMAX_API_KEY=your_minimax_api_key_here
+MINIMAX_API_HOST=https://api.minimaxi.chat
+MINIMAX_GROUP_ID=your_minimax_group_id_here
+
+# Mainland China Region (alternative):
+# MINIMAX_API_HOST=https://api.minimax.chat
+
+# MCP Configuration
+MINIMAX_MCP_BASE_PATH=/tmp/dnd_audio
+
+# OFFICIAL MCP TOOLS AVAILABLE:
+# ✅ text_to_audio (Speech-02-HD - World's best TTS)
+# ✅ voice_clone (5-second voice cloning)
+# ✅ text_to_image (High-quality D&D scenes)
+# ✅ generate_video (Epic D&D moments)
+# ✅ list_voices (Professional voice catalog)
+# ✅ query_video_generation (Video status checking)
+
+# API ENDPOINTS (Official MiniMax Speech-02)
+# Text-to-Speech: https://api.minimax.chat/v1/t2a_v2
+# Voice Cloning: https://api.minimax.chat/v1/voice_clone
+# Available Voices: https://api.minimax.chat/v1/text/speech_voices
+
+# FEATURES AVAILABLE:
+# ✅ Speech-02-HD (World's best TTS model)
+# ✅ 5-second voice cloning
+# ✅ 30+ language support
+# ✅ Emotional intelligence
+# ✅ Ultra-long text synthesis (10M characters)
+# ✅ Hyper-realistic voices
+
+# 🏆 Browserbase Integration (Ray-Ban glasses - $300 value)
+BROWSERBASE_API_KEY=your_browserbase_api_key_here
+BROWSERBASE_PROJECT_ID=your_browserbase_project_id_here
+
+# 🏆 Apify Integration ($1,000 cash prize)
+APIFY_API_TOKEN=your_apify_api_token_here
+
+# 🏆 Linkup Integration (10,000 API calls)
+LINKUP_API_KEY=your_linkup_api_key_here
+
+# 🏆 Senso.ai Integration ($1,000 credits)
+SENSO_API_KEY=your_senso_api_key_here
+SENSO_BASE_URL=your_senso_base_url_here
+
+# =============================================================================
+# APPLICATION SETTINGS
+# =============================================================================
+
+# Database (for production)
+DATABASE_URL=sqlite:///./dungeon_master.db
+
+# Security
+SECRET_KEY=your_secret_key_here
+JWT_SECRET=your_jwt_secret_here
+
+# Application
+DEBUG=True
+HOST=127.0.0.1
+PORT=8000
+FRONTEND_URL=http://localhost:3000
+
+# =============================================================================
+# HACKATHON SETTINGS
+# =============================================================================
+
+# AWS MCP Agents Hackathon
+HACKATHON_MODE=True
+SUBMISSION_TITLE="Chronicles of AI: The Ultimate AI Dungeon Master"
+TARGET_PRIZES="auth0,minimax,browserbase,apify,linkup,senso,overall_winner"
+TOTAL_PRIZE_VALUE=15000
+
+# Performance & Logging
+LOG_LEVEL=INFO
+MAX_SESSIONS=100
+SESSION_TIMEOUT=3600 

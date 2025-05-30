@@ -10,9 +10,9 @@ httpx
 requests
 
 # AI & ML
-torch
-anthropic>=0.52.0
-openai>=1.0.0
+torch==2.7.0
+anthropic==0.52.1
+openai==1.82.1
 
 # Environment & Config
 python-dotenv
@@ -24,7 +24,7 @@ numpy
 pandas
 
 # Audio Processing (for future MiniMax integration)
-librosa
+librosa==0.11.0
 soundfile
 soxr
 
@@ -42,3 +42,9 @@ flake8
 
 # Enhanced Features
 asyncio
+
+# MCP (Model Context Protocol) - MANDATORY for hackathon
+mcp==1.1.0
+mcp-server-stdio==0.4.0
+mcp-client==0.8.0
+ 

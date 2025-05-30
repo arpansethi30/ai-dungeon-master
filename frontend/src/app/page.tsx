@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Message {
   id: string
@@ -11,6 +11,9 @@ interface Message {
   rollResult?: any
   npcInvolved?: any
   tensionLevel?: string
+  audioUrl?: string
+  characterType?: string
+  voiceGeneration?: any
 }
 
 interface Character {
@@ -74,6 +77,14 @@ export default function Home() {
   const [advantage, setAdvantage] = useState(false)
   const [disadvantage, setDisadvantage] = useState(false)
 
+  const [isGeneratingVoice, setIsGeneratingVoice] = useState(false)
+
+  // Test voice functionality
+  const [showVoiceTest, setShowVoiceTest] = useState(false)
+  const [testVoiceType, setTestVoiceType] = useState('dm_narrator')
+  const [testText, setTestText] = useState('Welcome brave adventurers! Your epic journey begins now!')
+  const [testAudioUrl, setTestAudioUrl] = useState('')
+
   const sendMessage = async () => {
     if (!inputMessage.trim()) return
 
@@ -113,6 +124,10 @@ export default function Home() {
         tensionLevel: data.tension_level
       }
       setMessages(prev => [...prev, dmMessage])
+      
+      // Generate voice for DM response
+      generateVoiceForMessage(dmMessage, data.response)
+      
     } catch (error) {
       console.error('Error sending message:', error)
       const errorMessage: Message = {
@@ -125,6 +140,161 @@ export default function Home() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const generateVoiceForMessage = async (message: Message, text: string) => {
+    setIsGeneratingVoice(true)
+    try {
+      // Determine character type based on message content
+      let characterType = 'dm_narrator'
+      const textLower = text.toLowerCase()
+      
+      if (textLower.includes('dwarf') || textLower.includes('beard') || textLower.includes('axe')) {
+        characterType = 'dwarf_warrior'
+      } else if (textLower.includes('elf') || textLower.includes('magic') || textLower.includes('spell')) {
+        characterType = 'elf_mage'
+      } else if (textLower.includes('dragon')) {
+        characterType = 'dragon'
+      } else if (textLower.includes('fairy') || textLower.includes('sparkle')) {
+        characterType = 'fairy_companion'
+      } else if (textLower.includes('orc') || textLower.includes('villain') || textLower.includes('evil')) {
+        characterType = 'orc_villain'
+      }
+
+      const voiceResponse = await fetch('http://127.0.0.1:8000/api/minimax/voice/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: text,
+          character_id: characterType,
+          user_id: 'player_1'
+        })
+      })
+
+      const voiceData = await voiceResponse.json()
+      
+      if (voiceData.voice_result?.success && voiceData.voice_result?.audio_url) {
+        // Update the message with audio URL
+        setMessages(prev => prev.map(msg => 
+          msg.id === message.id 
+            ? { 
+                ...msg, 
+                audioUrl: `http://127.0.0.1:8000${voiceData.voice_result.audio_url}`,
+                characterType: characterType,
+                voiceGeneration: voiceData.voice_result
+              }
+            : msg
+        ))
+      } else {
+        console.log('Voice generation fallback:', voiceData)
+      }
+      
+    } catch (error) {
+      console.error('Error generating voice:', error)
+    } finally {
+      setIsGeneratingVoice(false)
+    }
+  }
+
+  // Audio player component
+  const AudioPlayer = ({ audioUrl, characterType }: { audioUrl: string, characterType?: string }) => {
+    const [isPlaying, setIsPlaying] = useState(false)
+    const [currentTime, setCurrentTime] = useState(0)
+    const [duration, setDuration] = useState(0)
+    
+    const audioRef = useRef<HTMLAudioElement>(null)
+    
+    const togglePlay = () => {
+      if (audioRef.current) {
+        if (isPlaying) {
+          audioRef.current.pause()
+        } else {
+          audioRef.current.play()
+        }
+        setIsPlaying(!isPlaying)
+      }
+    }
+    
+    const handleTimeUpdate = () => {
+      if (audioRef.current) {
+        setCurrentTime(audioRef.current.currentTime)
+      }
+    }
+    
+    const handleLoadedMetadata = () => {
+      if (audioRef.current) {
+        setDuration(audioRef.current.duration)
+      }
+    }
+    
+    const handleEnded = () => {
+      setIsPlaying(false)
+      setCurrentTime(0)
+    }
+    
+    const formatTime = (time: number) => {
+      const minutes = Math.floor(time / 60)
+      const seconds = Math.floor(time % 60)
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`
+    }
+    
+    const getCharacterEmoji = (type?: string) => {
+      switch (type) {
+        case 'dwarf_warrior': return '⚔️'
+        case 'elf_mage': return '✨'
+        case 'dragon': return '🐉'
+        case 'fairy_companion': return '🧚‍♀️'
+        case 'orc_villain': return '👹'
+        case 'wise_elder': return '📚'
+        default: return '🎭'
+      }
+    }
+    
+    return (
+      <div className="mt-2 p-2 bg-black/40 rounded-lg border border-purple-500/30">
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onEnded={handleEnded}
+          preload="metadata"
+        />
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={togglePlay}
+            className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-full transition-colors"
+          >
+            {isPlaying ? '⏸️' : '▶️'}
+          </button>
+          
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs text-purple-300">
+                {getCharacterEmoji(characterType)} MiniMax Voice Acting
+              </span>
+              <span className="text-xs text-purple-400">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
+            </div>
+            
+            <div className="w-full bg-purple-900/50 rounded-full h-2">
+              <div
+                className="bg-purple-400 h-2 rounded-full transition-all"
+                style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
+              />
+            </div>
+          </div>
+          
+          <div className="text-xs text-purple-400">
+            🏆 $2,750 Prize
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const createCharacter = async () => {
@@ -202,6 +372,36 @@ export default function Home() {
     }
   }
 
+  const testMiniMaxVoice = async () => {
+    setIsGeneratingVoice(true)
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/minimax/voice/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: testText,
+          character_id: testVoiceType,
+          user_id: 'test_user'
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.voice_result?.success && data.voice_result?.audio_url) {
+        setTestAudioUrl(`http://127.0.0.1:8000${data.voice_result.audio_url}`)
+      } else {
+        alert('Voice generation failed. Check API configuration.')
+      }
+    } catch (error) {
+      console.error('Error testing voice:', error)
+      alert('Voice test failed. Check server connection.')
+    } finally {
+      setIsGeneratingVoice(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900">
       {/* Header */}
@@ -215,6 +415,12 @@ export default function Home() {
               <p className="text-purple-200 mt-2">Advanced AI Dungeon Master v2.0</p>
             </div>
             <div className="flex gap-4">
+              <button
+                onClick={() => setShowVoiceTest(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+              >
+                🎭 Test Voices
+              </button>
               <button
                 onClick={() => setShowCharacterCreation(true)}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
@@ -332,8 +538,18 @@ export default function Home() {
                             {message.tensionLevel}
                           </span>
                         )}
+                        {message.characterType && (
+                          <span className="text-xs px-2 py-1 bg-purple-500 rounded">
+                            🎭 {message.characterType.replace('_', ' ')}
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm whitespace-pre-wrap">{message.text}</div>
+                      
+                      {/* Audio Player for DM messages */}
+                      {message.sender === 'dm' && message.audioUrl && (
+                        <AudioPlayer audioUrl={message.audioUrl} characterType={message.characterType} />
+                      )}
                       
                       {message.rollResult && (
                         <div className="mt-2 p-2 bg-black/30 rounded text-xs">
@@ -353,7 +569,7 @@ export default function Home() {
                   </div>
                 ))}
                 
-                {isLoading && (
+                {(isLoading || isGeneratingVoice) && (
                   <div className="flex justify-start">
                     <div className="bg-purple-700 text-purple-100 max-w-xs lg:max-w-md px-4 py-2 rounded-lg">
                       <div className="flex items-center gap-2">
@@ -361,8 +577,15 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="animate-spin h-4 w-4 border-2 border-purple-300 border-t-transparent rounded-full"></div>
-                        <p className="text-sm">Thinking...</p>
+                        <p className="text-sm">
+                          {isLoading ? 'Thinking...' : 'Generating voice acting...'}
+                        </p>
                       </div>
+                      {isGeneratingVoice && (
+                        <div className="mt-1 text-xs text-purple-300">
+                          🎭 MiniMax Speech-02 generating character voice...
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -458,7 +681,7 @@ export default function Home() {
                     value={characterForm.character_class}
                     onChange={(e) => setCharacterForm({...characterForm, character_class: e.target.value})}
                     className="w-full bg-black/50 border border-purple-500/30 rounded px-3 py-2 text-white"
-                  >
+        >
                     <option value="fighter">Fighter</option>
                     <option value="wizard">Wizard</option>
                     <option value="rogue">Rogue</option>
@@ -589,6 +812,82 @@ export default function Home() {
                 className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Voice Test Modal */}
+      {showVoiceTest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-lg p-6 max-w-lg w-full mx-4 border border-purple-500/30">
+            <h2 className="text-2xl font-bold text-purple-400 mb-4">🎭 Test MiniMax Voices</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-purple-300 text-sm font-semibold mb-2">Character Voice</label>
+                <select
+                  value={testVoiceType}
+                  onChange={(e) => setTestVoiceType(e.target.value)}
+                  className="w-full bg-black/50 border border-purple-500/30 rounded px-3 py-2 text-white"
+                >
+                  <option value="dm_narrator">🎲 DM Narrator (Commanding)</option>
+                  <option value="dwarf_warrior">⚔️ Dwarf Warrior (Gruff)</option>
+                  <option value="elf_mage">✨ Elf Mage (Elegant)</option>
+                  <option value="human_rogue">🗡️ Human Rogue (Witty)</option>
+                  <option value="dragon">🐉 Ancient Dragon (Terrifying)</option>
+                  <option value="fairy_companion">🧚‍♀️ Fairy Companion (Cheerful)</option>
+                  <option value="orc_villain">👹 Orc Villain (Menacing)</option>
+                  <option value="wise_elder">📚 Wise Elder (Ancient)</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-purple-300 text-sm font-semibold mb-2">Test Text</label>
+                <textarea
+                  value={testText}
+                  onChange={(e) => setTestText(e.target.value)}
+                  className="w-full bg-black/50 border border-purple-500/30 rounded px-3 py-2 text-white"
+                  rows={3}
+                  placeholder="Enter text to convert to speech..."
+                />
+              </div>
+              
+              {testAudioUrl && (
+                <div>
+                  <label className="block text-purple-300 text-sm font-semibold mb-2">Generated Audio</label>
+                  <AudioPlayer audioUrl={testAudioUrl} characterType={testVoiceType} />
+                </div>
+              )}
+              
+              <div className="bg-purple-900/30 p-3 rounded-lg">
+                <h4 className="text-purple-300 font-semibold mb-2">🏆 MiniMax Integration</h4>
+                <div className="text-xs text-purple-200 space-y-1">
+                  <div>• Speech-02-HD: World's best TTS model</div>
+                  <div>• Prize Target: $2,750 + Ray-Ban glasses</div>
+                  <div>• Real-time D&D character voices</div>
+                  <div>• Professional API integration</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={testMiniMaxVoice}
+                disabled={!testText || isGeneratingVoice}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white py-2 rounded-lg font-semibold transition-colors"
+              >
+                {isGeneratingVoice ? 'Generating Voice...' : '🎤 Generate Voice'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowVoiceTest(false)
+                  setTestAudioUrl('')
+                }}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
