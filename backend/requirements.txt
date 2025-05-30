@@ -1,0 +1,44 @@
+# FastAPI & Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+python-jose[cryptography]
+
+# CORS & HTTP
+fastapi-cors
+httpx
+requests
+
+# AI & ML
+torch
+anthropic>=0.52.0
+openai>=1.0.0
+
+# Environment & Config
+python-dotenv
+pydantic
+pydantic-settings
+
+# Data Processing
+numpy
+pandas
+
+# Audio Processing (for future MiniMax integration)
+librosa
+soundfile
+soxr
+
+# Database (SQLite for local dev)
+sqlalchemy
+alembic
+
+# WebSocket support
+websockets
+
+# Development & Testing
+pytest
+black
+flake8
+
+# Enhanced Features
+asyncio
