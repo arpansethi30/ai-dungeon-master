@@ -1,8 +1,8 @@
-# 🌟 Chronicles of AI - Immersion & Realism Roadmap
+# 🌟 NeuroDungeon - Immersion & Realism Roadmap
 
 ## 🎯 **Vision: Creating the Most Authentic D&D Experience**
 
-Transform Chronicles of AI from a "chatbot" into a **living, breathing D&D world** where every interaction feels genuine, dramatic, and memorable.
+Transform NeuroDungeon from a "chatbot" into a **living, breathing D&D world** where every interaction feels genuine, dramatic, and memorable.
 
 ---
 
@@ -331,7 +331,7 @@ curl -X POST "http://127.0.0.1:8000/api/characters/create" \
 
 ## 💫 **The Vision Realized**
 
-Imagine Chronicles of AI as the **Netflix of D&D** - where every session feels like a blockbuster movie, every character interaction feels genuine, and every dice roll matters. Where the AI doesn't just respond to you, but **creates stories with you**.
+Imagine NeuroDungeon as the **Netflix of D&D** - where every session feels like a blockbuster movie, every character interaction feels genuine, and every dice roll matters. Where the AI doesn't just respond to you, but **creates stories with you**.
 
 **This isn't just a game. It's a new form of interactive entertainment.**
 

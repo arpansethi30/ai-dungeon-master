@@ -48,7 +48,7 @@ from app.api.linkup.routes import router as linkup_router
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Chronicles of AI - Agentic AI D&D System",
+    title="NeuroDungeon - Agentic AI D&D System",
     description="Autonomous AI-powered Dungeons & Dragons with intelligent decision-making",
     version="4.0.0",
     docs_url="/docs",
@@ -123,7 +123,7 @@ async def root():
     ai_report = agentic_dm.get_ai_status_report()
     
     return {
-        "message": "🤖 Welcome to Chronicles of AI - Agentic AI D&D System!",
+        "message": "🤖 Welcome to NeuroDungeon - Agentic AI D&D System!",
         "version": "4.0.0",
         "ai_integration": {
             "type": "Agentic Autonomous AI",
@@ -264,7 +264,7 @@ async def chat_with_agentic_dm(request: MessageRequest):
         )
 
 @app.get("/api/dm/introduction")
-async def get_agentic_dm_introduction(campaign_name: str = "Chronicles of AI"):
+async def get_agentic_dm_introduction(campaign_name: str = "NeuroDungeon"):
     """Get an immersive introduction from the agentic AI DM"""
     intro = f"""
 🤖 **AGENTIC AI DUNGEON MASTER ONLINE** 🤖
@@ -1213,7 +1213,7 @@ app.include_router(multiplayer.router, prefix="/api/multiplayer", tags=["multipl
 app.include_router(linkup_router, prefix="/api/linkup", tags=["linkup"])
 
 if __name__ == "__main__":
-    print("🤖 Starting Chronicles of AI - Agentic AI D&D System...")
+    print("🤖 Starting NeuroDungeon - Agentic AI D&D System...")
     print("📊 Agentic Features loaded:")
     print("   🧠 Autonomous Decision Making")
     print("   📊 Player Behavior Analysis")

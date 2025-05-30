@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Chronicles of AI - Multiplayer D&D",
+  title: "NeuroDungeon - Multiplayer D&D",
   description: "AI-powered Dungeons & Dragons with voice acting and autonomous companions",
 };
 

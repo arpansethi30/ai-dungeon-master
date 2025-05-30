@@ -1,4 +1,4 @@
-# 🎮 Chronicles of AI - Advanced D&D System
+# 🎮 NeuroDungeon - Advanced D&D System
 ## Major Achievements & Features Built
 
 ### 🏗️ **Professional Backend Architecture (v2.0)**
@@ -162,4 +162,4 @@ curl -X POST "http://127.0.0.1:8000/api/dice/roll" \
 
 ---
 
-**🎮 Chronicles of AI represents a complete, professional-grade AI-powered D&D system ready for hackathon demonstration and further sponsor integration!** 
+**🎮 NeuroDungeon represents a complete, professional-grade AI-powered D&D system ready for hackathon demonstration and further sponsor integration!** 

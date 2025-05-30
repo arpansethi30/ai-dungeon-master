@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { CharacterSheet } from '@/components/ui/character-sheet';
 import { LinkupPanel } from '@/components/ui/linkup-panel';
 import { useUser, getUserDisplayName, getUserExperienceLevel, isPremiumUser, mockLogin, mockLogout } from '@/lib/auth0';
 
+// Enhanced interfaces with better typing
 interface AIPlayer {
   name: string;
   class: string;
@@ -34,6 +35,7 @@ interface GameTurn {
   voice_id?: string;
   audio_file?: string;
   timestamp: string;
+  id?: string; // Add unique ID for better React rendering
 }
 
 interface MultiplayerSession {
@@ -47,75 +49,216 @@ interface MultiplayerSession {
   party_stats: any;
 }
 
+// Enhanced error types
+interface AppError {
+  type: 'network' | 'api' | 'validation' | 'audio' | 'unknown';
+  message: string;
+  details?: string;
+}
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 export default function MultiplayerPage() {
-  // State Management
+  // State Management with better organization
   const [session, setSession] = useState<MultiplayerSession | null>(null);
   const [aiPlayers, setAiPlayers] = useState<AIPlayer[]>([]);
   const [playerName, setPlayerName] = useState('');
   const [currentAction, setCurrentAction] = useState('');
   const [currentDialogue, setCurrentDialogue] = useState('');
   const [gameHistory, setGameHistory] = useState<GameTurn[]>([]);
+  
+  // Loading and error states
   const [isLoading, setIsLoading] = useState(false);
-  const [voiceMode, setVoiceMode] = useState(true);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [error, setError] = useState<AppError | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+  
+  // UI states
+  const [voiceMode, setVoiceMode] = useState(true);
   const [showGameGuide, setShowGameGuide] = useState(false);
   const [showCharacterSheet, setShowCharacterSheet] = useState(false);
   const [showDiceRoller, setShowDiceRoller] = useState(false);
   const [showLinkupPanel, setShowLinkupPanel] = useState(false);
-  const [playerCharacter, setPlayerCharacter] = useState(null);
+  const [playerCharacter, setPlayerCharacter] = useState<any>(null);
   
-  // Audio Management
+  // Audio Management with better state handling
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
-  const [audioQueue, setAudioQueue] = useState<Array<{text: string, speaker: string, audioUrl: string}>>([]);
+  const [audioQueue, setAudioQueue] = useState<Array<{text: string, speaker: string, audioUrl: string, id: string}>>([]);
   const [isPlayingSequence, setIsPlayingSequence] = useState(false);
   const [volume, setVolume] = useState(0.8);
+  const [audioError, setAudioError] = useState<string | null>(null);
+
+  // Speech-to-Text functionality
+  const [isListening, setIsListening] = useState(false);
+  const [speechRecognition, setSpeechRecognition] = useState<any>(null);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const [conversationMode, setConversationMode] = useState<'typing' | 'speaking'>('typing');
 
   // Auth0 integration
   const user = useUser();
 
-  // Load AI Players on Mount
+  // Enhanced error handling function
+  const handleError = useCallback((error: any, type: AppError['type'] = 'unknown') => {
+    console.error(`${type} error:`, error);
+    
+    const errorMessage = error?.message || error?.toString() || 'An unexpected error occurred';
+    const errorDetails = error?.stack || error?.details;
+    
+    setError({
+      type,
+      message: errorMessage,
+      details: errorDetails
+    });
+
+    // Auto-clear error after 10 seconds
+    setTimeout(() => setError(null), 10000);
+  }, []);
+
+  // Enhanced connection check
+  const checkBackendConnection = useCallback(async () => {
+    try {
+      setConnectionStatus('connecting');
+      const response = await fetch(`${BACKEND_URL}/health`, { 
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
+      
+      if (response.ok) {
+        setConnectionStatus('connected');
+        setError(null);
+      } else {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+    } catch (error) {
+      setConnectionStatus('disconnected');
+      handleError(error, 'network');
+    }
+  }, [handleError]);
+
+  // Load AI Players with better error handling
+  const loadAiPlayers = useCallback(async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/multiplayer/ai-players`, {
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load AI players: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setAiPlayers(data.ai_players);
+      } else {
+        throw new Error(data.message || 'Failed to load AI players');
+      }
+    } catch (error) {
+      handleError(error, 'api');
+    }
+  }, [handleError]);
+
+  // Enhanced initialization
   useEffect(() => {
-    loadAiPlayers();
-    // Show game guide on first visit
-    const hasSeenGuide = localStorage.getItem('dnd-guide-seen');
-    if (!hasSeenGuide) {
-      setShowGameGuide(true);
-      localStorage.setItem('dnd-guide-seen', 'true');
+    const initializeApp = async () => {
+      await checkBackendConnection();
+      await loadAiPlayers();
+      
+      // Show game guide on first visit
+      const hasSeenGuide = localStorage.getItem('dnd-guide-seen');
+      if (!hasSeenGuide) {
+        setShowGameGuide(true);
+        localStorage.setItem('dnd-guide-seen', 'true');
+      }
+    };
+
+    initializeApp();
+  }, [checkBackendConnection, loadAiPlayers]);
+
+  // Initialize speech recognition separately
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        
+        recognition.onstart = () => {
+          setIsListening(true);
+          setSpeechError(null);
+        };
+        
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setCurrentAction(transcript);
+          // Show success notification in the UI
+          setTimeout(() => {
+            showNotification(`✅ Heard: "${transcript}"`, 'success', 3000);
+          }, 100);
+        };
+        
+        recognition.onerror = (event: any) => {
+          setIsListening(false);
+          setSpeechError(`Speech recognition error: ${event.error}`);
+          setTimeout(() => {
+            showNotification(`❌ Speech error: ${event.error}`, 'error');
+          }, 100);
+        };
+        
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+        
+        setSpeechRecognition(recognition);
+        setSpeechSupported(true);
+      } else {
+        setSpeechSupported(false);
+        console.log('Speech recognition not supported in this browser');
+      }
     }
   }, []);
 
-  // Auto-play audio queue
+  // Enhanced auto-play audio queue with error handling
   useEffect(() => {
     if (audioQueue.length > 0 && !isPlayingSequence && !currentlyPlaying) {
       playNextInQueue();
     }
   }, [audioQueue, isPlayingSequence, currentlyPlaying]);
 
-  const loadAiPlayers = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/multiplayer/ai-players`);
-      const data = await response.json();
-      if (data.success) {
-        setAiPlayers(data.ai_players);
-      }
-    } catch (error) {
-      console.error('Failed to load AI players:', error);
-    }
-  };
+  // Memoized quick action buttons for better performance
+  const quickActionButtons = useMemo(() => [
+    { action: 'investigate', label: '🔍 Investigate', color: 'bg-blue-600/80 hover:bg-blue-600' },
+    { action: 'attack', label: '⚔️ Attack', color: 'bg-red-600/80 hover:bg-red-600' },
+    { action: 'cast spell', label: '✨ Cast Spell', color: 'bg-purple-600/80 hover:bg-purple-600' },
+    { action: 'talk', label: '💬 Talk', color: 'bg-green-600/80 hover:bg-green-600' }
+  ], []);
 
-  const createSession = async () => {
-    // Use Auth0 user name if available, otherwise use manual input
+  // Enhanced session creation with validation
+  const createSession = useCallback(async () => {
     const effectivePlayerName = user.user ? getUserDisplayName(user.user) : playerName.trim();
     
     if (!effectivePlayerName) {
-      alert('Please enter your character name or login with Auth0!');
+      setError({
+        type: 'validation',
+        message: 'Please enter your character name or login with Auth0!'
+      });
+      return;
+    }
+
+    if (connectionStatus === 'disconnected') {
+      setError({
+        type: 'network',
+        message: 'Cannot create session: Backend server is not connected'
+      });
       return;
     }
 
     setIsCreatingSession(true);
+    setError(null);
+    
     try {
       const response = await fetch(`${BACKEND_URL}/api/multiplayer/create-session`, {
         method: 'POST',
@@ -123,7 +266,6 @@ export default function MultiplayerPage() {
         body: JSON.stringify({
           player_name: effectivePlayerName,
           voice_mode: voiceMode,
-          // Include Auth0 user metadata if available
           user_profile: user.user ? {
             auth0_id: user.user.sub,
             email: user.user.email,
@@ -131,14 +273,20 @@ export default function MultiplayerPage() {
             experience_level: getUserExperienceLevel(user.user),
             is_premium: isPremiumUser(user.user)
           } : null
-        })
+        }),
+        signal: AbortSignal.timeout(15000) // 15 second timeout
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Server error (${response.status})`);
+      }
 
       const data = await response.json();
       if (data.success) {
         setSession(data.session);
         
-        // Play opening scene audio if available and auto-queue it
+        // Enhanced audio queue with unique IDs
         if (data.session.opening_scene?.audio_file && voiceMode) {
           setTimeout(() => {
             addToAudioQueue(
@@ -149,200 +297,106 @@ export default function MultiplayerPage() {
           }, 1000);
         }
         
-        // Add opening to history
-        setGameHistory([{
+        // Add opening to history with unique ID
+        const openingTurn: GameTurn = {
+          id: `opening-${Date.now()}`,
           player_name: 'Dungeon Master',
           action: 'campaign_start',
           dialogue: data.session.opening_scene.description + ' ' + data.session.opening_scene.dm_welcome,
           voice_id: 'dm_narrator',
           audio_file: data.session.opening_scene?.audio_file,
           timestamp: new Date().toISOString()
-        }]);
+        };
+        setGameHistory([openingTurn]);
+        
+        // Success notification
+        showNotification('Session created successfully!', 'success');
       } else {
-        alert('Failed to create session: ' + data.message);
+        throw new Error(data.message || 'Unknown error occurred');
       }
     } catch (error) {
-      console.error('Error creating session:', error);
-      alert('Failed to create session. Make sure the backend server is running!');
+      handleError(error, 'api');
     } finally {
       setIsCreatingSession(false);
     }
-  };
+  }, [user.user, playerName, voiceMode, connectionStatus, handleError]);
 
-  const submitAction = async () => {
-    if (!session || !currentAction.trim()) return;
-
-    // Debug: Check session object
-    console.log("🔍 Session object:", session);
-    console.log("🔍 Human player field:", session.human_player);
+  // Enhanced notification system
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', duration = 4000) => {
+    const notification = document.createElement('div');
+    const colors = {
+      success: 'bg-green-600',
+      error: 'bg-red-600', 
+      info: 'bg-blue-600'
+    };
     
-    // Ensure we have a player name
-    const sessionPlayerName = session.human_player || playerName || "Unknown Player";
-    if (!sessionPlayerName || sessionPlayerName === "Unknown Player") {
-      alert("Error: Player name not found in session. Please restart the session.");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const requestBody = {
-        session_id: session.session_id,
-        player_name: sessionPlayerName,
-        action: currentAction.trim(),
-        dialogue: currentDialogue.trim(),
-        generate_voice: voiceMode
-      };
-      
-      console.log("🔍 Sending request body:", requestBody);
-
-      const response = await fetch(`${BACKEND_URL}/api/multiplayer/player-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      const data = await response.json();
-      
-      // Better error handling
-      if (!response.ok) {
-        console.error('Server error:', response.status, data);
-        let errorMessage = `Server error (${response.status})`;
-        
-        if (data.detail) {
-          if (typeof data.detail === 'string') {
-            errorMessage += `: ${data.detail}`;
-          } else if (Array.isArray(data.detail)) {
-            // Handle Pydantic validation errors
-            const errors = data.detail.map((err: any) => {
-              return `${err.loc.join('.')}: ${err.msg}`;
-            }).join(', ');
-            errorMessage += `: ${errors}`;
-          } else {
-            errorMessage += `: ${JSON.stringify(data.detail)}`;
+    notification.className = `fixed top-4 right-4 ${colors[type]} text-white p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-right duration-300`;
+    notification.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-lg">${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
+        <div class="font-medium">${message}</div>
+      </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      if (document.body.contains(notification)) {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
           }
-        }
-        
-        alert(errorMessage);
-        return;
+        }, 300);
       }
-      
-      if (data.success) {
-        const newTurns: GameTurn[] = [];
-        
-        // Add human player turn
-        newTurns.push({
-          player_name: sessionPlayerName,
-          action: currentAction,
-          dialogue: currentDialogue,
-          timestamp: new Date().toISOString()
-        });
+    }, duration);
+  }, []);
 
-        // Add DM response and queue voice
-        if (data.turn_result.dm_response) {
-          const dmTurn = {
-            player_name: 'Dungeon Master',
-            action: 'dm_response',
-            dialogue: data.turn_result.dm_response.dm_narration,
-            voice_id: 'dm_narrator',
-            audio_file: data.turn_result.dm_response.audio_file,
-            timestamp: new Date().toISOString()
-          };
-          newTurns.push(dmTurn);
-          
-          // Auto-queue DM voice for playback if available
-          if (voiceMode && data.turn_result.dm_response.audio_file) {
-            setTimeout(() => {
-              addToAudioQueue(
-                data.turn_result.dm_response.dm_narration,
-                'Dungeon Master',
-                data.turn_result.dm_response.audio_file
-              );
-            }, 500);
-          }
-        }
-
-        // Add AI player responses and queue voices
-        if (data.turn_result.ai_responses) {
-          data.turn_result.ai_responses.forEach((aiResponse: any, index: number) => {
-            const aiTurn = {
-              player_name: aiResponse.player_name,
-              action: aiResponse.action_type,
-              dialogue: aiResponse.response,
-              voice_id: aiResponse.voice_id,
-              audio_file: aiResponse.audio_file,
-              timestamp: new Date().toISOString()
-            };
-            newTurns.push(aiTurn);
-            
-            // Auto-queue AI voices for playback if available
-            if (voiceMode && aiResponse.audio_file) {
-              setTimeout(() => {
-                addToAudioQueue(
-                  aiResponse.response,
-                  aiResponse.player_name,
-                  aiResponse.audio_file
-                );
-              }, 1000 + (index * 300)); // Stagger slightly
-            }
-          });
-        }
-
-        setGameHistory(prev => [...prev, ...newTurns]);
-        setCurrentAction('');
-        setCurrentDialogue('');
-        
-        // Show notification about voice playback
-        if (voiceMode) {
-          const audioCount = [
-            data.turn_result.dm_response?.audio_file,
-            ...(data.turn_result.ai_responses?.map((r: any) => r.audio_file) || [])
-          ].filter(Boolean).length;
-          
-          if (audioCount > 0) {
-            setTimeout(() => {
-              const notification = document.createElement('div');
-              notification.className = 'fixed top-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-50 animate-bounce';
-              notification.innerHTML = `
-                <div class="flex items-center gap-2">
-                  <span class="text-xl">🎤</span>
-                  <div>
-                    <div class="font-bold">Voice Acting Ready!</div>
-                    <div class="text-sm">${audioCount} characters will speak with voices</div>
-                  </div>
-                </div>
-              `;
-              document.body.appendChild(notification);
-              
-              setTimeout(() => {
-                if (document.body.contains(notification)) {
-                  document.body.removeChild(notification);
-                }
-              }, 4000);
-            }, 500);
-          }
-        }
-      } else {
-        console.error('Action failed:', data);
-        alert('Action failed: ' + (data.message || 'Unknown error'));
+  // Speech control functions
+  const startListening = useCallback(() => {
+    if (speechRecognition && !isListening) {
+      try {
+        speechRecognition.start();
+        showNotification('🎤 Listening... Speak now!', 'info', 2000);
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        setSpeechError('Failed to start speech recognition');
+        showNotification('❌ Speech recognition failed to start', 'error');
       }
-    } catch (error) {
-      console.error('Error submitting action:', error);
-      alert('Failed to submit action - Check console for details');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [speechRecognition, isListening, showNotification]);
 
-  const playAudio = async (audioUrl: string, speaker: string) => {
+  const stopListening = useCallback(() => {
+    if (speechRecognition && isListening) {
+      speechRecognition.stop();
+    }
+  }, [speechRecognition, isListening]);
+
+  // Enhanced audio functions with better error handling
+  const addToAudioQueue = useCallback((text: string, speaker: string, audioUrl: string) => {
+    const audioItem = {
+      text,
+      speaker,
+      audioUrl,
+      id: `audio-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    setAudioQueue(prev => [...prev, audioItem]);
+  }, []);
+
+  const playAudio = useCallback(async (audioUrl: string, speaker: string) => {
     if (!audioRef.current) return;
     
     try {
       setCurrentlyPlaying(speaker);
+      setAudioError(null);
+      
       audioRef.current.src = `${BACKEND_URL}${audioUrl}`;
       audioRef.current.volume = volume;
+      
       await audioRef.current.play();
       
-      // Add immersive effect - slight screen flash for dramatic moments
+      // Visual feedback for DM narration
       if (speaker === 'Dungeon Master') {
         document.body.style.backgroundColor = 'rgba(147, 51, 234, 0.1)';
         setTimeout(() => {
@@ -351,15 +405,13 @@ export default function MultiplayerPage() {
       }
     } catch (error) {
       console.error('Audio playback failed:', error);
+      setAudioError(`Failed to play audio for ${speaker}`);
       setCurrentlyPlaying(null);
+      handleError(error, 'audio');
     }
-  };
+  }, [volume, handleError]);
 
-  const addToAudioQueue = (text: string, speaker: string, audioUrl: string) => {
-    setAudioQueue(prev => [...prev, { text, speaker, audioUrl }]);
-  };
-
-  const playNextInQueue = async () => {
+  const playNextInQueue = useCallback(async () => {
     if (audioQueue.length === 0 || isPlayingSequence) return;
     
     setIsPlayingSequence(true);
@@ -373,948 +425,930 @@ export default function MultiplayerPage() {
       setCurrentlyPlaying(null);
       setIsPlayingSequence(false);
     }
-  };
+  }, [audioQueue, isPlayingSequence, playAudio]);
 
-  const handleAudioEnded = () => {
+  const handleAudioEnded = useCallback(() => {
     setCurrentlyPlaying(null);
     setIsPlayingSequence(false);
-    // This will trigger the useEffect to play next in queue
-  };
+    setAudioError(null);
+  }, []);
 
-  const testVoice = async (characterType: string) => {
+  // Enhanced action submission with better validation and error handling
+  const submitAction = useCallback(async () => {
+    if (!session || !currentAction.trim()) {
+      setError({
+        type: 'validation',
+        message: 'Please enter an action before submitting'
+      });
+      return;
+    }
+
+    const sessionPlayerName = session.human_player || playerName || "Unknown Player";
+    if (!sessionPlayerName || sessionPlayerName === "Unknown Player") {
+      setError({
+        type: 'validation',
+        message: "Player name not found in session. Please restart the session."
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setSpeechError(null); // Clear any speech errors when submitting
+    
+    // Show different feedback based on conversation mode
+    if (conversationMode === 'speaking') {
+      showNotification('🎮 Processing your spoken command...', 'info', 2000);
+    }
+    
     try {
-      const response = await fetch(`${BACKEND_URL}/api/multiplayer/voice-test/${characterType}`);
+      const requestBody = {
+        session_id: session.session_id,
+        player_name: sessionPlayerName,
+        action: currentAction.trim(),
+        dialogue: currentDialogue.trim(),
+        generate_voice: voiceMode,
+        interaction_mode: conversationMode // Add conversation mode to track user preference
+      };
+
+      const response = await fetch(`${BACKEND_URL}/api/multiplayer/player-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(30000) // 30 second timeout for AI processing
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        let errorMessage = `Server error (${response.status})`;
+        
+        if (data.detail) {
+          if (typeof data.detail === 'string') {
+            errorMessage += `: ${data.detail}`;
+          } else if (Array.isArray(data.detail)) {
+            const errors = data.detail.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+            errorMessage += `: ${errors}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const newTurns: GameTurn[] = [];
+        
+        // Add human player turn with unique ID
+        newTurns.push({
+          id: `player-${Date.now()}`,
+          player_name: sessionPlayerName,
+          action: currentAction,
+          dialogue: currentDialogue,
+          timestamp: new Date().toISOString()
+        });
+
+        // Add DM response and queue voice
+        if (data.turn_result.dm_response) {
+          const dmTurn: GameTurn = {
+            id: `dm-${Date.now()}`,
+            player_name: 'Dungeon Master',
+            action: 'dm_response',
+            dialogue: data.turn_result.dm_response.dm_narration,
+            voice_id: 'dm_narrator',
+            audio_file: data.turn_result.dm_response.audio_file,
+            timestamp: new Date().toISOString()
+          };
+          newTurns.push(dmTurn);
+          
+          if (voiceMode && data.turn_result.dm_response.audio_file) {
+            setTimeout(() => {
+              addToAudioQueue(
+                data.turn_result.dm_response.dm_narration,
+                'Dungeon Master',
+                data.turn_result.dm_response.audio_file
+              );
+            }, 500);
+          }
+        }
+
+        // Add AI player responses with unique IDs
+        if (data.turn_result.ai_responses) {
+          data.turn_result.ai_responses.forEach((aiResponse: any, index: number) => {
+            const aiTurn: GameTurn = {
+              id: `ai-${Date.now()}-${index}`,
+              player_name: aiResponse.player_name,
+              action: aiResponse.action_type,
+              dialogue: aiResponse.response,
+              voice_id: aiResponse.voice_id,
+              audio_file: aiResponse.audio_file,
+              timestamp: new Date().toISOString()
+            };
+            newTurns.push(aiTurn);
+            
+            if (voiceMode && aiResponse.audio_file) {
+              setTimeout(() => {
+                addToAudioQueue(
+                  aiResponse.response,
+                  aiResponse.player_name,
+                  aiResponse.audio_file
+                );
+              }, 1000 + (index * 300));
+            }
+          });
+        }
+
+        setGameHistory(prev => [...prev, ...newTurns]);
+        setCurrentAction('');
+        setCurrentDialogue('');
+        
+        // Enhanced voice notification
+        if (voiceMode) {
+          const audioCount = [
+            data.turn_result.dm_response?.audio_file,
+            ...(data.turn_result.ai_responses?.map((r: any) => r.audio_file) || [])
+          ].filter(Boolean).length;
+          
+          if (audioCount > 0) {
+            showNotification(`🎤 ${audioCount} character voices ready to play!`, 'success');
+          }
+        }
+      } else {
+        throw new Error(data.message || 'Action failed');
+      }
+    } catch (error) {
+      handleError(error, 'api');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session, currentAction, currentDialogue, playerName, voiceMode, addToAudioQueue, showNotification, handleError, conversationMode]);
+
+  // Enhanced voice testing with error handling
+  const testVoice = useCallback(async (characterType: string) => {
+    try {
+      setAudioError(null);
+      const response = await fetch(`${BACKEND_URL}/api/multiplayer/voice-test/${characterType}`, {
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Voice test failed: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.success && data.voice_result?.audio_url) {
-        playAudio(data.voice_result.audio_url, characterType);
+        await playAudio(data.voice_result.audio_url, characterType);
+        showNotification(`🎤 Testing ${characterType} voice`, 'info');
       } else {
-        alert('Voice test failed. Check if MiniMax API is configured.');
+        throw new Error('Voice test failed. Check if MiniMax API is configured.');
       }
     } catch (error) {
-      console.error('Voice test failed:', error);
-      alert('Voice test failed');
+      handleError(error, 'audio');
+      showNotification('Voice test failed', 'error');
     }
-  };
+  }, [playAudio, showNotification, handleError]);
 
-  // Session Creation UI
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
-        <div className="max-w-6xl mx-auto">
-          {/* Enhanced Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 mb-6 animate-pulse">
-              🎮 Chronicles of AI: Multiplayer D&D
-            </h1>
-            <p className="text-2xl text-blue-200 mb-4">
-              Join an epic adventure with AI companions and voice acting!
-            </p>
-            <div className="flex justify-center space-x-4 text-sm">
-              <Badge variant="outline" className="bg-purple-600/20 border-purple-400">
-                🏆 AWS MCP Agents Hackathon
-              </Badge>
-              <Badge variant="outline" className="bg-green-600/20 border-green-400">
-                🎤 MiniMax Speech-02-HD
-              </Badge>
-              <Badge variant="outline" className="bg-yellow-600/20 border-yellow-400">
-                💰 $2,750 + Ray-Ban Prize
-              </Badge>
-            </div>
-            
-            {/* Auth0 User Profile Section */}
-            <div className="mt-6 p-4 bg-gradient-to-r from-orange-900/30 to-orange-700/20 rounded-xl border border-orange-400/50">
-              {user.user ? (
-                <div className="flex items-center justify-center gap-4">
-                  <div className="flex items-center gap-3">
-                    {user.user.picture && (
-                      <img 
-                        src={user.user.picture} 
-                        alt="Profile" 
-                        className="w-12 h-12 rounded-full border-2 border-orange-400"
-                      />
-                    )}
-                    <div>
-                      <div className="text-lg font-bold text-orange-300">
-                        🔐 Welcome, {getUserDisplayName(user.user)}!
-                      </div>
-                      <div className="text-sm text-orange-200">
-                        {isPremiumUser(user.user) && '👑 Premium • '}
-                        Experience: {getUserExperienceLevel(user.user)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className="bg-orange-600/30 border-orange-400">
-                      🔐 Mock Auth Active
-                    </Badge>
-                    <Button
-                      onClick={mockLogout}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-1 text-sm"
-                    >
-                      Logout
-                    </Button>
-                  </div>
+  // Enhanced error display component
+  const ErrorDisplay = ({ error }: { error: AppError }) => (
+    <div className="fixed top-4 left-4 right-4 bg-red-900/90 border border-red-500 text-red-100 p-4 rounded-lg shadow-lg z-50 max-w-md mx-auto">
+      <div className="flex items-start gap-3">
+        <span className="text-red-400 text-lg">❌</span>
+        <div className="flex-1">
+          <div className="font-bold text-red-300">
+            {error.type === 'network' ? 'Connection Error' :
+             error.type === 'api' ? 'Server Error' :
+             error.type === 'validation' ? 'Input Error' :
+             error.type === 'audio' ? 'Audio Error' : 'Error'}
+          </div>
+          <div className="text-sm mt-1">{error.message}</div>
+          {error.details && (
+            <details className="mt-2">
+              <summary className="text-xs cursor-pointer text-red-300">Show details</summary>
+              <pre className="text-xs mt-1 text-red-200 whitespace-pre-wrap">{error.details}</pre>
+            </details>
+          )}
+        </div>
+        <Button
+          onClick={() => setError(null)}
+          className="text-red-300 hover:text-red-100 p-1"
+          variant="ghost"
+          size="sm"
+        >
+          ✕
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Connection status indicator
+  const ConnectionStatus = () => (
+    <div className={`fixed top-4 left-4 px-3 py-1 rounded-full text-xs font-medium z-40 ${
+      connectionStatus === 'connected' ? 'bg-green-600 text-white' :
+      connectionStatus === 'connecting' ? 'bg-yellow-600 text-white animate-pulse' :
+      'bg-red-600 text-white'
+    }`}>
+      {connectionStatus === 'connected' ? '🟢 Connected' :
+       connectionStatus === 'connecting' ? '🟡 Connecting...' :
+       '🔴 Disconnected'}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-purple-900 text-white relative overflow-hidden">
+      {/* Enhanced Background Effects */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-0 left-0 w-full h-full bg-[url('/fantasy-bg.jpg')] bg-cover bg-center opacity-10"></div>
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-purple-500/10 to-blue-500/10"></div>
+        <div className="absolute animate-pulse top-1/4 left-1/4 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute animate-pulse delay-1000 bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl"></div>
+      </div>
+
+      {/* Enhanced Audio Player with improved error handling */}
+      <audio
+        ref={audioRef}
+        onEnded={handleAudioEnded}
+        onError={(e) => {
+          console.error('Audio error:', e);
+          setAudioError('Audio playback failed');
+          setCurrentlyPlaying(null);
+          setIsPlayingSequence(false);
+        }}
+        className="hidden"
+      />
+
+      {/* Audio Controls & Status */}
+      {(currentlyPlaying || audioError || audioQueue.length > 0) && (
+        <div className="fixed bottom-4 right-4 bg-black/80 backdrop-blur-lg border border-purple-500/50 rounded-lg p-4 z-40 max-w-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              {currentlyPlaying && (
+                <div className="text-sm">
+                  <div className="text-green-400 font-medium">🎤 Playing:</div>
+                  <div className="text-white truncate">{currentlyPlaying}</div>
                 </div>
-              ) : (
-                <div className="text-center space-y-3">
-                  <div className="text-lg font-bold text-orange-300">🔐 Demo Authentication</div>
-                  <p className="text-orange-200 text-sm">
-                    Experience the D&D platform with demo user profiles (Auth0 integration in progress)
-                  </p>
-                  <div className="flex justify-center gap-3">
-                    <Button
-                      onClick={() => mockLogin('demo-user')}
-                      className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-300 transform hover:scale-105"
-                    >
-                      🔐 Login as Demo Player
-                    </Button>
-                    <Button
-                      onClick={() => mockLogin('alex-dragonslayer')}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-300 transform hover:scale-105"
-                    >
-                      🐉 Login as Alex Dragon Slayer
-                    </Button>
-                    <Button
-                      onClick={() => setPlayerName('Guest Player')}
-                      className="bg-gray-600 hover:bg-gray-700"
-                    >
-                      🎮 Continue as Guest
-                    </Button>
-                  </div>
-                  <div className="text-xs text-orange-200">
-                    Try different user profiles to see Auth0-style authentication in action!
-                  </div>
+              )}
+              {audioError && (
+                <div className="text-red-400 text-sm">
+                  <div className="font-medium">❌ Audio Error:</div>
+                  <div>{audioError}</div>
+                </div>
+              )}
+              {audioQueue.length > 0 && !currentlyPlaying && (
+                <div className="text-yellow-400 text-sm">
+                  <div className="font-medium">⏳ Queue:</div>
+                  <div>{audioQueue.length} voices waiting</div>
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            {/* Enhanced Session Creation */}
-            <Card className="bg-gradient-to-br from-black/40 to-black/20 backdrop-blur-lg border-blue-500/50 shadow-2xl transform hover:scale-105 transition-all duration-300">
-              <CardHeader>
-                <CardTitle className="text-3xl text-white flex items-center gap-3">
-                  🚀 Start Your Adventure
-                  <Badge variant="secondary" className="bg-blue-600/30">
-                    New Session
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {!user.user && (
-                  <div className="space-y-3">
-                    <label className="text-white font-medium text-lg flex items-center gap-2">
-                      ⚔️ Your Character Name:
-                    </label>
-                    <Input
-                      value={playerName}
-                      onChange={(e) => setPlayerName(e.target.value)}
-                      placeholder="Enter your heroic character name..."
-                      className="text-lg p-4 bg-white/10 border-blue-400 text-white placeholder-blue-300 focus:border-blue-300 transition-all duration-300"
-                    />
-                    <div className="text-sm text-blue-200">
-                      Choose a name worthy of legend! 🌟 (Or login with Auth0 for saved profiles)
-                    </div>
-                  </div>
-                )}
-                
-                {user.user && (
-                  <div className="space-y-3">
-                    <div className="p-4 bg-green-600/20 rounded-lg border border-green-400/50">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-green-300 mb-2">
-                          ⚔️ Ready to Adventure!
-                        </div>
-                        <div className="text-green-200">
-                          Playing as: <strong>{getUserDisplayName(user.user)}</strong>
-                        </div>
-                        <div className="text-sm text-green-200 mt-1">
-                          🔐 Authenticated with Auth0 • Profile automatically loaded
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-4 bg-purple-600/20 rounded-lg border border-purple-400/30">
-                    <input
-                      type="checkbox"
-                      id="voice-mode"
-                      checked={voiceMode}
-                      onChange={(e) => setVoiceMode(e.target.checked)}
-                      className="w-5 h-5 rounded accent-purple-500"
-                    />
-                    <label htmlFor="voice-mode" className="text-white text-lg flex items-center gap-2">
-                      🎤 Enable Voice Acting
-                      <Badge variant="outline" className="bg-purple-600/30 border-purple-400">
-                        MiniMax Speech-02-HD
-                      </Badge>
-                    </label>
-                  </div>
-                  <div className="text-sm text-purple-200 pl-8">
-                    Experience immersive D&D with AI character voices! 🎭
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={createSession}
-                  disabled={isCreatingSession || (!user.user && !playerName.trim())}
-                  className="w-full text-xl p-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 shadow-lg"
-                >
-                  {isCreatingSession ? (
-                    <div className="flex items-center gap-3">
-                      <div className="animate-spin h-6 w-6 border-3 border-white border-t-transparent rounded-full"></div>
-                      🔄 Creating Epic Session...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      {user.user ? '🔐 Begin Authenticated Adventure!' : '⚔️ Begin Epic Adventure!'}
-                      <span className="animate-bounce">🌟</span>
-                    </div>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Enhanced AI Companions Preview */}
-            <Card className="bg-gradient-to-br from-black/40 to-black/20 backdrop-blur-lg border-purple-500/50 shadow-2xl">
-              <CardHeader>
-                <CardTitle className="text-3xl text-white flex items-center gap-3">
-                  🤖 Your AI Companions
-                  <Badge variant="secondary" className="bg-purple-600/30">
-                    {aiPlayers.length} Heroes
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-80">
-                  {aiPlayers.map((player, index) => (
-                    <div 
-                      key={player.name} 
-                      className="mb-4 p-4 bg-gradient-to-r from-white/10 to-white/5 rounded-lg border border-white/20 hover:border-purple-400/50 transition-all duration-300 transform hover:scale-105"
-                      style={{ animationDelay: `${index * 0.1}s` }}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="space-y-2">
-                          <h4 className="text-white font-bold text-lg flex items-center gap-2">
-                            {player.name}
-                            <span className="text-sm">🏴‍☠️</span>
-                          </h4>
-                          <div className="flex gap-2">
-                            <Badge variant="secondary" className="bg-blue-600/30">
-                              {player.class}
-                            </Badge>
-                            <Badge variant="outline" className="bg-purple-600/20 border-purple-400">
-                              {player.personality}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-300">
-                            Level {player.level} | HP: {player.hp}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => testVoice(player.voice_id)}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-110"
-                        >
-                          🎤 Test Voice
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-blue-200 text-sm font-medium">{player.voice_description}</p>
-                        <div className="text-xs text-purple-200 bg-purple-900/30 p-2 rounded">
-                          💭 "{player.personality_traits[0] || 'Ready for adventure!'}"
-                        </div>
-                        <div className="flex gap-2 text-xs">
-                          <Badge variant="outline" className="bg-red-600/20 border-red-400">
-                            ⚔️ {player.weapons[0] || 'Weapon'}
-                          </Badge>
-                          <Badge variant="outline" className="bg-green-600/20 border-green-400">
-                            🎭 {player.roleplay_style.split(' ')[0] || 'Roleplay'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Premium Sponsor Showcase */}
-          <div className="mb-8 p-6 bg-gradient-to-r from-black/60 to-black/40 backdrop-blur-lg rounded-xl border border-blue-500/30">
-            <h3 className="text-2xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 mb-6">
-              🚀 Powered by Industry Leaders
-            </h3>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 bg-gradient-to-br from-orange-900/30 to-orange-700/20 rounded-lg border border-orange-400/50 hover:border-orange-300/70 transition-all duration-300 transform hover:scale-105">
-                <div className="text-center space-y-2">
-                  <div className="text-3xl">🔐</div>
-                  <div className="font-bold text-orange-300">Auth0</div>
-                  <div className="text-xs text-orange-200">Secure Authentication</div>
-                  <Badge variant="outline" className="bg-orange-600/20 border-orange-400 text-xs">
-                    {user.user ? '✅ Active' : 'User Profiles'}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="p-4 bg-gradient-to-br from-blue-900/30 to-blue-700/20 rounded-lg border border-blue-400/50 hover:border-blue-300/70 transition-all duration-300 transform hover:scale-105">
-                <div className="text-center space-y-2">
-                  <div className="text-3xl">🕷️</div>
-                  <div className="font-bold text-blue-300">Apify</div>
-                  <div className="text-xs text-blue-200">Web Scraping Platform</div>
-                  <Badge variant="outline" className="bg-blue-600/20 border-blue-400 text-xs">
-                    Dynamic Content
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="p-4 bg-gradient-to-br from-green-900/30 to-green-700/20 rounded-lg border border-green-400/50 hover:border-green-300/70 transition-all duration-300 transform hover:scale-105">
-                <div className="text-center space-y-2">
-                  <div className="text-3xl">🌐</div>
-                  <div className="font-bold text-green-300">Browserbase</div>
-                  <div className="text-xs text-green-200">AI Browser Automation</div>
-                  <Badge variant="outline" className="bg-green-600/20 border-green-400 text-xs">
-                    Smart Agents
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="p-4 bg-gradient-to-br from-purple-900/30 to-purple-700/20 rounded-lg border border-purple-400/50 hover:border-purple-300/70 transition-all duration-300 transform hover:scale-105">
-                <div className="text-center space-y-2">
-                  <div className="text-3xl">🔗</div>
-                  <div className="font-bold text-purple-300">Linkup.so</div>
-                  <div className="text-xs text-purple-200">Real-time D&D Content</div>
-                  <Badge variant="outline" className="bg-green-600/20 border-green-400 text-xs animate-pulse">
-                    ✅ ACTIVE
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-300 mb-3">
-                🏆 <strong>Multi-Prize Strategy:</strong> Integrating cutting-edge technologies for maximum hackathon impact
-              </p>
-              <div className="flex justify-center space-x-2 text-xs">
-                <Badge variant="outline" className="bg-red-600/20 border-red-400">Auth0 Prize Track</Badge>
-                <Badge variant="outline" className="bg-blue-600/20 border-blue-400">Apify Challenge</Badge>
-                <Badge variant="outline" className="bg-green-600/20 border-green-400">Browserbase Innovation</Badge>
-                <Badge variant="outline" className="bg-purple-600/20 border-purple-400">✅ Linkup D&D Enhancement</Badge>
-              </div>
-            </div>
-          </div>
-
-          {/* Enhanced Feature Showcase */}
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-gradient-to-br from-green-900/30 to-green-700/20 border-green-400/50 hover:border-green-300/70 transition-all duration-300 transform hover:scale-105">
-              <CardContent className="p-6 text-center">
-                <div className="text-4xl mb-4">🎤</div>
-                <h3 className="text-xl text-green-300 font-bold mb-2">MiniMax Voice Acting</h3>
-                <div className="text-sm text-green-200 space-y-1">
-                  <div>• Speech-02-HD: World's best TTS</div>
-                  <div>• 8 Unique D&D character voices</div>
-                  <div>• Real-time audio generation</div>
-                  <div>• Emotional voice intelligence</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-blue-900/30 to-blue-700/20 border-blue-400/50 hover:border-blue-300/70 transition-all duration-300 transform hover:scale-105">
-              <CardContent className="p-6 text-center">
-                <div className="text-4xl mb-4">🤖</div>
-                <h3 className="text-xl text-blue-300 font-bold mb-2">AI Companions</h3>
-                <div className="text-sm text-blue-200 space-y-1">
-                  <div>• 4 Smart AI party members</div>
-                  <div>• Unique personalities & voices</div>
-                  <div>• Turn-based multiplayer</div>
-                  <div>• Autonomous decision making</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-900/30 to-purple-700/20 border-purple-400/50 hover:border-purple-300/70 transition-all duration-300 transform hover:scale-105">
-              <CardContent className="p-6 text-center">
-                <div className="text-4xl mb-4">🏆</div>
-                <h3 className="text-xl text-purple-300 font-bold mb-2">Hackathon Prize</h3>
-                <div className="text-sm text-purple-200 space-y-1">
-                  <div>• $2,750 cash prize target</div>
-                  <div>• + Ray-Ban smart glasses</div>
-                  <div>• AWS MCP Agents integration</div>
-                  <div>• Professional voice demo</div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* System Status */}
-          <Card className="bg-gradient-to-r from-black/40 to-black/20 backdrop-blur-lg border-gray-500/30 shadow-xl">
-            <CardContent className="p-6">
-              <h3 className="text-2xl text-white font-bold mb-4 text-center">🔧 System Status</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div className="space-y-2">
-                  <div className="text-green-400 font-bold">✅ Backend API</div>
-                  <div className="text-xs text-gray-300">Multiplayer Ready</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-green-400 font-bold">✅ MiniMax API</div>
-                  <div className="text-xs text-gray-300">Voice Generation</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-green-400 font-bold">✅ AI Companions</div>
-                  <div className="text-xs text-gray-300">4 Characters Ready</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-green-400 font-bold">✅ UI Components</div>
-                  <div className="text-xs text-gray-300">Enhanced Design</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <audio 
-          ref={audioRef} 
-          onEnded={handleAudioEnded}
-          onLoadStart={() => console.log("🎤 Loading audio...")}
-          onCanPlay={() => console.log("🎤 Audio ready to play")}
-          onError={(e) => console.error("🎤 Audio error:", e)}
-          style={{ display: 'none' }}
-        />
-      </div>
-    );
-  }
-
-  // Main Game UI
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-indigo-900 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Enhanced Header */}
-        <div className="mb-6 p-6 bg-black/40 backdrop-blur-lg rounded-xl border border-purple-500/30 shadow-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2">
-                🌟 {session.party_stats?.location || 'The Adventure Continues'}
-              </h1>
-              <div className="flex items-center space-x-4 text-white">
-                <Badge variant="outline" className="bg-blue-600/20 border-blue-400">
-                  🎮 Session: {session.session_id}
-                </Badge>
-                <Badge variant="outline" className="bg-green-600/20 border-green-400">
-                  🎲 Turn: {session.party_stats?.total_turns || 0}
-                </Badge>
-                <Badge variant={voiceMode ? "default" : "secondary"} className={voiceMode ? "bg-purple-600 animate-pulse" : ""}>
-                  {voiceMode ? '🎤 Voice Acting ON' : '🔇 Voice Off'}
-                </Badge>
-                <Badge variant="outline" className="bg-yellow-600/20 border-yellow-400">
-                  ⚡ Current: {session.current_turn}
-                </Badge>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-purple-300 mb-2">🏆 Hackathon Demo</div>
-              <div className="text-xs text-gray-400">MiniMax Speech-02-HD • $2,750 Prize</div>
-              {/* NEW: Sponsor Tech Stack */}
-              <div className="mt-2 flex flex-wrap gap-1">
-                <Badge variant="outline" className="bg-orange-600/20 border-orange-400 text-xs">
-                  🔐 Auth0
-                </Badge>
-                <Badge variant="outline" className="bg-blue-600/20 border-blue-400 text-xs">
-                  🕷️ Apify
-                </Badge>
-                <Badge variant="outline" className="bg-green-600/20 border-green-400 text-xs">
-                  🌐 Browserbase
-                </Badge>
-                <Badge variant="outline" className="bg-purple-600/20 border-purple-400 text-xs">
-                  🔗 Linkup.so
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Enhanced Party Members Panel */}
-          <Card className="lg:col-span-1 bg-gradient-to-b from-black/40 to-black/20 backdrop-blur-lg border-blue-500/50 shadow-2xl">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-white flex items-center gap-2">
-                👥 Party Members
-                <Badge variant="secondary" className="text-xs">{session.party_members.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-80">
-                {session.party_members.map((member: any, index: number) => (
-                  <div 
-                    key={member.name} 
-                    className={`mb-3 p-3 rounded-lg transition-all duration-300 hover:scale-105 ${
-                      member.name === session.current_turn 
-                        ? 'bg-gradient-to-r from-yellow-600/30 to-orange-600/30 border border-yellow-400/50 shadow-lg' 
-                        : 'bg-white/10 hover:bg-white/20'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <div>
-                        <div className="text-white font-medium flex items-center gap-2">
-                          {member.name}
-                          {member.name === session.current_turn && (
-                            <span className="text-yellow-400 animate-bounce">⭐</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-300 capitalize">{member.class}</div>
-                        {member.type === 'ai' && (
-                          <div className="text-xs text-blue-300">HP: {member.hp} | Lv.{member.level}</div>
-                        )}
-                      </div>
-                      <Badge 
-                        variant={member.type === 'human' ? 'default' : 'secondary'}
-                        className={member.type === 'human' ? 'bg-green-600' : 'bg-purple-600'}
-                      >
-                        {member.type === 'human' ? '👤 You' : '🤖 AI'}
-                      </Badge>
-                    </div>
-                    {member.type === 'ai' && (
-                      <div className="space-y-2">
-                        <div className="text-xs text-purple-200">
-                          🎭 {member.personality_traits?.[0] || 'Mysterious'}
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => testVoice(member.voice_id)}
-                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs transition-all duration-300"
-                        >
-                          🎤 Test Voice
-                        </Button>
-                      </div>
-                    )}
-                    {member.type === 'human' && (
-                      <div className="space-y-1 mt-2">
-                        <Button
-                          size="sm"
-                          onClick={() => setShowCharacterSheet(true)}
-                          className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-xs transition-all duration-300"
-                        >
-                          📊 Character Sheet
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* Enhanced Adventure Log */}
-          <Card className="lg:col-span-2 bg-gradient-to-b from-black/40 to-black/20 backdrop-blur-lg border-purple-500/50 shadow-2xl">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-white flex items-center gap-2">
-                📜 Adventure Log
-                <Badge variant="outline" className="text-xs">
-                  {gameHistory.length} events
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-96">
-                {gameHistory.map((turn, index) => (
-                  <div 
-                    key={index} 
-                    className="mb-4 p-4 bg-gradient-to-r from-white/10 to-white/5 rounded-lg border border-white/20 hover:border-purple-400/50 transition-all duration-300 transform hover:scale-[1.02]"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Badge 
-                          variant="outline" 
-                          className={`${
-                            turn.player_name === 'Dungeon Master' 
-                              ? 'bg-purple-600/30 border-purple-400' 
-                              : turn.player_name === session.human_player 
-                                ? 'bg-green-600/30 border-green-400' 
-                                : 'bg-blue-600/30 border-blue-400'
-                          }`}
-                        >
-                          {turn.player_name === 'Dungeon Master' ? '🎭' : 
-                           turn.player_name === session.human_player ? '👤' : '🤖'}
-                        </Badge>
-                        <span className="text-white font-medium">{turn.player_name}</span>
-                        {currentlyPlaying === turn.player_name && (
-                          <Badge variant="default" className="animate-pulse bg-green-600">
-                            🔊 Speaking
-                          </Badge>
-                        )}
-                        {audioQueue.some(audio => audio.speaker === turn.player_name) && (
-                          <Badge variant="secondary" className="animate-bounce bg-yellow-600">
-                            ⏳ Queued
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {turn.audio_file && (
-                          <Button
-                            size="sm"
-                            onClick={() => playAudio(turn.audio_file!, turn.player_name)}
-                            disabled={currentlyPlaying !== null}
-                            className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 transition-all duration-300"
-                          >
-                            {currentlyPlaying === turn.player_name ? '🔊' : '🎤'} Play
-                          </Button>
-                        )}
-                        <div className="text-xs text-gray-400">
-                          {new Date(turn.timestamp).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-white leading-relaxed">{turn.dialogue}</p>
-                      {turn.action !== 'dm_response' && turn.action !== 'campaign_start' && (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            ⚔️ {turn.action}
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {(isLoading) && (
-                  <div className="mb-4 p-4 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-lg border border-purple-400/50 animate-pulse">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <Badge variant="outline" className="bg-purple-600/30 border-purple-400">🎭</Badge>
-                      <span className="text-white font-medium">AI Processing...</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="animate-spin h-5 w-5 border-2 border-purple-300 border-t-transparent rounded-full"></div>
-                      <p className="text-purple-200">
-                        🧠 AI companions are thinking and responding...
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* Enhanced Action Panel */}
-          <Card className="lg:col-span-1 bg-gradient-to-b from-black/40 to-black/20 backdrop-blur-lg border-green-500/50 shadow-2xl">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-white flex items-center gap-2">
-                ⚔️ Your Turn
-                {session.current_turn === session.human_player && (
-                  <Badge variant="default" className="bg-green-600 animate-pulse">
-                    Active
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-white text-sm font-medium flex items-center gap-2 mb-2">
-                  🎯 Action:
-                </label>
-                <Input
-                  value={currentAction}
-                  onChange={(e) => setCurrentAction(e.target.value)}
-                  placeholder="investigate, attack, cast spell..."
-                  className="bg-white/10 border-gray-600 text-white placeholder-gray-400 focus:border-green-400 transition-colors"
-                  disabled={isLoading}
-                />
-                {/* Quick Action Buttons */}
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Button
-                    size="sm"
-                    onClick={() => setCurrentAction('investigate')}
-                    className="bg-blue-600/80 hover:bg-blue-600 text-xs"
-                    disabled={isLoading}
-                  >
-                    🔍 Investigate
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => setCurrentAction('attack')}
-                    className="bg-red-600/80 hover:bg-red-600 text-xs"
-                    disabled={isLoading}
-                  >
-                    ⚔️ Attack
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => setCurrentAction('cast spell')}
-                    className="bg-purple-600/80 hover:bg-purple-600 text-xs"
-                    disabled={isLoading}
-                  >
-                    ✨ Cast Spell
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => setCurrentAction('talk')}
-                    className="bg-green-600/80 hover:bg-green-600 text-xs"
-                    disabled={isLoading}
-                  >
-                    💬 Talk
-                  </Button>
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-white text-sm font-medium flex items-center gap-2 mb-2">
-                  💬 Dialogue:
-                </label>
-                <Textarea
-                  value={currentDialogue}
-                  onChange={(e) => setCurrentDialogue(e.target.value)}
-                  placeholder="What do you say or do?"
-                  className="bg-white/10 border-gray-600 text-white placeholder-gray-400 focus:border-green-400 transition-colors"
-                  rows={3}
-                  disabled={isLoading}
-                />
-              </div>
-
-              <Button
-                onClick={submitAction}
-                disabled={isLoading || !currentAction.trim()}
-                className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
-              >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                    🔄 Processing...
-                  </div>
-                ) : (
-                  '🎲 Take Action!'
-                )}
-              </Button>
-
-              <Separator className="bg-white/20" />
-
-              {/* Voice Controls */}
-              <div className="space-y-3">
-                <div className="text-center">
-                  <p className="text-white text-sm mb-2 font-medium">🎤 Audio Status:</p>
-                  {currentlyPlaying ? (
-                    <Badge variant="default" className="text-sm px-3 py-1 bg-green-600 animate-pulse">
-                      🔊 {currentlyPlaying} Speaking
-                    </Badge>
-                  ) : audioQueue.length > 0 ? (
-                    <Badge variant="secondary" className="text-sm px-3 py-1 bg-yellow-600 animate-bounce">
-                      ⏳ {audioQueue.length} Voice{audioQueue.length !== 1 ? 's' : ''} Queued
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-sm px-3 py-1 bg-gray-600/30">
-                      🔇 Ready for Audio
-                    </Badge>
-                  )}
-                </div>
-                
-                {audioQueue.length > 0 && (
-                  <div className="text-center space-y-2">
-                    <Button
-                      size="sm"
-                      onClick={() => setAudioQueue([])}
-                      className="bg-red-600 hover:bg-red-700 text-xs"
-                    >
-                      🗑️ Clear Audio Queue
-                    </Button>
-                    <div className="text-xs text-purple-200">
-                      Next: {audioQueue[0]?.speaker}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Volume Control */}
-                <div className="space-y-2">
-                  <label className="text-white text-xs font-medium flex items-center gap-2">
-                    🔊 Voice Volume:
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">🔇</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={volume}
-                      onChange={(e) => {
-                        const newVolume = parseFloat(e.target.value);
-                        setVolume(newVolume);
-                        if (audioRef.current) {
-                          audioRef.current.volume = newVolume;
-                        }
-                      }}
-                      className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <span className="text-xs text-gray-400">🔊</span>
-                  </div>
-                  <div className="text-xs text-center text-purple-200">
-                    Volume: {Math.round(volume * 100)}%
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center space-y-3">
-                <div>
-                  <p className="text-white text-sm mb-2 font-medium">Current Turn:</p>
-                  <Badge 
-                    variant="default" 
-                    className={`text-lg px-4 py-2 ${
-                      session.current_turn === session.human_player 
-                        ? 'bg-green-600 animate-pulse' 
-                        : 'bg-blue-600'
-                    }`}
-                  >
-                    {session.current_turn}
-                  </Badge>
-                </div>
-                
-                <div className="text-xs text-gray-400 space-y-1">
-                  <div>🏆 Prize Target: $2,750 + Ray-Ban</div>
-                  <div>🎤 MiniMax Speech-02-HD</div>
-                  <div>🤖 AWS MCP Agents</div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    onClick={() => setShowGameGuide(true)}
-                    className="bg-yellow-600 hover:bg-yellow-700 text-sm"
-                  >
-                    📖 How to Play
-                  </Button>
-                  
-                  <Button
-                    onClick={() => setShowDiceRoller(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-sm"
-                  >
-                    🎲 Roll Dice
-                  </Button>
-
-                  <Button
-                    onClick={() => setShowLinkupPanel(true)}
-                    className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-sm"
-                  >
-                    🔗 Linkup D&D
-                  </Button>
-                </div>
-                
-                <Button
-                  onClick={async () => {
-                    try {
-                      console.log("🔍 Current Session:", session);
-                      const response = await fetch(`${BACKEND_URL}/api/multiplayer/debug/sessions`);
-                      const data = await response.json();
-                      console.log("🔍 Debug Sessions:", data);
-                      alert(`Debug info logged to console. Session ID: ${session?.session_id}, Player: ${session?.human_player}`);
-                    } catch (error) {
-                      console.error("Debug error:", error);
-                    }
-                  }}
-                  className="w-full bg-gray-600 hover:bg-gray-700 text-xs"
-                >
-                  🔧 Debug Session
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Enhanced Scene Description */}
-        <Card className="mt-6 bg-gradient-to-r from-black/40 to-black/20 backdrop-blur-lg border-yellow-500/50 shadow-2xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-white flex items-center gap-2">
-              🌟 Current Scene
-              <Badge variant="outline" className="bg-yellow-600/20 border-yellow-400">
-                {session.campaign_title || 'Epic Adventure'}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 p-6 rounded-lg border border-yellow-500/30">
-              <p className="text-white text-lg leading-relaxed font-medium">
-                {session.current_scene}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <audio 
-        ref={audioRef} 
-        onEnded={handleAudioEnded}
-        onLoadStart={() => console.log("🎤 Loading audio...")}
-        onCanPlay={() => console.log("🎤 Audio ready to play")}
-        onError={(e) => console.error("🎤 Audio error:", e)}
-        style={{ display: 'none' }}
-      />
-      
-      {/* Dice Roller Modal */}
-      {showDiceRoller && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/50">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                  🎲 Advanced Dice Roller
-                </h2>
-                <Button
-                  onClick={() => setShowDiceRoller(false)}
-                  className="bg-gray-600 hover:bg-gray-700"
-                >
-                  ✕ Close
-                </Button>
-              </div>
-
-              <DiceRoller
-                onRollComplete={(result) => {
-                  console.log("🎲 Dice roll result:", result);
-                  // You can add the dice roll to game history or trigger AI responses
-                  const newTurn = {
-                    player_name: session?.human_player || 'Player',
-                    action: 'dice_roll',
-                    dialogue: `Rolled ${result.die}: ${result.roll} + ${result.modifier} = ${result.total}`,
-                    timestamp: new Date().toISOString()
-                  };
-                  setGameHistory(prev => [newTurn, ...prev]);
-                }}
+            <div className="space-y-1">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="w-16 h-2"
+                title="Volume"
               />
+              <div className="text-xs text-center text-gray-400">
+                {Math.round(volume * 100)}%
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Character Sheet Modal */}
-      {showCharacterSheet && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/50">
+      <div className="container mx-auto px-4 py-8 relative z-10">
+        {/* Enhanced Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-4 bg-black/30 backdrop-blur-lg border border-purple-500/50 rounded-2xl px-8 py-4">
+            <div className="text-4xl">🎲</div>
+            <div>
+              <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400">
+                NeuroDungeon
+              </h1>
+              <p className="text-gray-300 mt-1">AI-Powered Multiplayer D&D Adventure</p>
+            </div>
+            <div className="text-4xl">⚔️</div>
+          </div>
+        </div>
+
+        {!session ? (
+          // Enhanced Session Creation UI
+          <div className="max-w-2xl mx-auto">
+            <Card className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-lg border-purple-500/50 shadow-2xl">
+              <CardHeader className="text-center">
+                <CardTitle className="text-3xl text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
+                  🎲 Create Your Adventure
+                </CardTitle>
+                <p className="text-gray-300 mt-2">
+                  Join an AI-powered D&D session with voice-acting companions
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Enhanced Auth Section */}
+                <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 p-6 rounded-lg border border-purple-400/30">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">👤 Player Identity</h3>
+                    {user.user ? (
+                      <Badge className="bg-green-600 text-white">
+                        ✅ {getUserDisplayName(user.user)}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-yellow-400 text-yellow-400">
+                        Guest Mode
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {user.user ? (
+                      <div className="bg-green-600/20 p-4 rounded border border-green-400/50">
+                        <div className="flex items-center gap-3 mb-2">
+                          {user.user?.picture && (
+                            <img 
+                              src={user.user.picture} 
+                              alt="Profile" 
+                              className="w-10 h-10 rounded-full border-2 border-green-400"
+                            />
+                          )}
+                          <div>
+                            <div className="text-green-300 font-bold">
+                              Welcome, {getUserDisplayName(user.user)}!
+                            </div>
+                            <div className="text-green-400 text-sm">
+                              Experience: {getUserExperienceLevel(user.user)} | 
+                              {isPremiumUser(user.user) ? ' Premium User 👑' : ' Standard User'}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={mockLogout}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-400 text-red-400 hover:bg-red-400 hover:text-black"
+                        >
+                          🚪 Logout
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-white font-medium mb-2 block">Character Name:</label>
+                          <Input
+                            value={playerName}
+                            onChange={(e) => setPlayerName(e.target.value)}
+                            placeholder="Enter your D&D character name..."
+                            className="bg-white/10 border-purple-400 text-white placeholder-purple-300 focus:border-purple-300"
+                            disabled={isCreatingSession}
+                          />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-gray-400 text-sm mb-3">Or sign in for enhanced features:</p>
+                          <Button
+                            onClick={() => mockLogin()}
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                            disabled={isCreatingSession}
+                          >
+                            🔐 Login with Auth0
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Enhanced Game Settings */}
+                <div className="bg-gradient-to-r from-green-600/20 to-teal-600/20 p-6 rounded-lg border border-green-400/30">
+                  <h3 className="text-lg font-bold text-white mb-4">⚙️ Game Settings</h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
+                      <div>
+                        <div className="text-white font-medium">🎤 Voice Acting Mode</div>
+                        <div className="text-gray-400 text-sm">
+                          AI companions speak with unique voices using MiniMax Speech-02-HD
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => setVoiceMode(!voiceMode)}
+                        className={voiceMode ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700'}
+                        disabled={isCreatingSession}
+                      >
+                        {voiceMode ? '🔊 Enabled' : '🔇 Disabled'}
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        onClick={() => setShowGameGuide(true)}
+                        variant="outline"
+                        className="border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-black"
+                        disabled={isCreatingSession}
+                      >
+                        📖 How to Play
+                      </Button>
+                      <Button
+                        onClick={() => setShowCharacterSheet(true)}
+                        variant="outline" 
+                        className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-black"
+                        disabled={isCreatingSession}
+                      >
+                        📜 Character Sheet
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enhanced Start Button */}
+                <div className="text-center">
+                  <Button
+                    onClick={createSession}
+                    disabled={isCreatingSession || connectionStatus === 'disconnected'}
+                    className="w-full py-4 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 shadow-lg transition-all duration-300 hover:shadow-purple-500/25"
+                  >
+                    {isCreatingSession ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                        Creating Adventure...
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-2xl">🚀</span>
+                        Start Your Adventure!
+                        <span className="text-2xl">⚔️</span>
+                      </div>
+                    )}
+                  </Button>
+                  
+                  {connectionStatus === 'disconnected' && (
+                    <div className="mt-2 text-red-400 text-sm">
+                      ⚠️ Cannot start: Backend server disconnected
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          // Enhanced Game Session UI - Compact Single-View Layout
+          <div className="grid grid-cols-2 gap-4 h-[calc(100vh-180px)]">
+            {/* Top Left: Adventure Chronicle */}
+            <Card className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-lg border-purple-500/50 shadow-xl">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-white flex items-center gap-2 text-lg">
+                    📜 Adventure Chronicle
+                    <Badge variant="outline" className="bg-purple-600/20 border-purple-400 text-xs">
+                      {gameHistory.length} turns
+                    </Badge>
+                  </CardTitle>
+                  {isLoading && (
+                    <div className="flex items-center gap-2 text-yellow-400">
+                      <div className="animate-spin w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full"></div>
+                      <span className="text-xs">AI Thinking...</span>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[calc(50vh-120px)]">
+                  <div className="space-y-2">
+                    {gameHistory.map((turn, index) => (
+                      <div
+                        key={turn.id || `turn-${index}`}
+                        className={`p-2 rounded-lg border-l-4 transition-all duration-300 hover:shadow-lg ${
+                          turn.player_name === 'Dungeon Master'
+                            ? 'bg-gradient-to-r from-purple-600/20 to-indigo-600/20 border-l-purple-400 hover:from-purple-600/30 hover:to-indigo-600/30'
+                            : turn.player_name === session.human_player
+                            ? 'bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border-l-blue-400 hover:from-blue-600/30 hover:to-cyan-600/30'
+                            : 'bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-l-green-400 hover:from-green-600/30 hover:to-emerald-600/30'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-white text-xs">
+                              {turn.player_name === 'Dungeon Master' ? '🎭' : 
+                               turn.player_name === session.human_player ? '👤' : '🤖'} 
+                              {turn.player_name}
+                            </span>
+                            {turn.voice_id && (
+                              <Badge variant="outline" className="text-xs bg-blue-600/20 border-blue-400 px-1 py-0">
+                                🎤
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {new Date(turn.timestamp).toLocaleTimeString()}
+                          </div>
+                        </div>
+                        
+                        {turn.action && turn.action !== 'dm_response' && turn.action !== 'campaign_start' && (
+                          <div className="text-xs text-gray-300 mb-1">
+                            <strong>Action:</strong> {turn.action}
+                          </div>
+                        )}
+                        
+                        <div className="text-white text-xs leading-relaxed">
+                          {turn.dialogue}
+                        </div>
+                        
+                        {turn.audio_file && voiceMode && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              onClick={() => playAudio(turn.audio_file!, turn.player_name)}
+                              disabled={currentlyPlaying === turn.player_name}
+                              className="bg-blue-600/80 hover:bg-blue-600 text-xs px-1 py-0.5 h-6"
+                            >
+                              {currentlyPlaying === turn.player_name ? (
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 animate-pulse bg-white rounded-full"></div>
+                                  Playing
+                                </div>
+                              ) : (
+                                <>🎤</>
+                              )}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Top Right: Your Turn */}
+            <Card className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-lg border-green-500/50 shadow-xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white flex items-center gap-2 text-lg">
+                  ⚡ Your Turn
+                  {session.current_turn && (
+                    <Badge className="bg-green-600 text-xs">
+                      {session.current_turn === session.human_player ? 'Your Turn!' : `${session.current_turn}'s Turn`}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-white font-medium text-sm">What do you want to do?</label>
+                    {speechSupported && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setConversationMode(conversationMode === 'typing' ? 'speaking' : 'typing')}
+                          className={`transition-all duration-300 text-xs px-2 py-1 h-6 ${
+                            conversationMode === 'speaking' 
+                              ? 'bg-purple-600 hover:bg-purple-700' 
+                              : 'bg-gray-600 hover:bg-gray-700'
+                          }`}
+                        >
+                          {conversationMode === 'speaking' ? '🎤 Voice' : '⌨️ Type'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {conversationMode === 'speaking' ? (
+                    <div className="space-y-2">
+                      <div className={`relative border-2 rounded-lg p-4 transition-all duration-300 ${
+                        isListening 
+                          ? 'border-green-500 bg-green-500/10 animate-pulse' 
+                          : 'border-purple-500 bg-purple-500/10'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            {isListening ? (
+                              <div className="text-green-400 font-medium text-sm">
+                                🎤 Listening... Speak now!
+                              </div>
+                            ) : (
+                              <div className="text-purple-400 font-medium text-sm">
+                                🎙️ Click to speak with your AI companions
+                              </div>
+                            )}
+                            {speechError && (
+                              <div className="text-red-400 text-xs mt-1">
+                                ❌ {speechError}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            onClick={isListening ? stopListening : startListening}
+                            disabled={!speechSupported}
+                            className={`transition-all duration-300 ${
+                              isListening 
+                                ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                                : 'bg-green-600 hover:bg-green-700'
+                            }`}
+                            size="sm"
+                          >
+                            {isListening ? (
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                                Stop
+                              </div>
+                            ) : (
+                              <>🎤 Speak</>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {currentAction && (
+                        <div className="bg-blue-600/20 border border-blue-400 rounded-lg p-3">
+                          <div className="text-blue-300 font-medium text-xs mb-1">Your spoken action:</div>
+                          <div className="text-white text-sm">{currentAction}</div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Input
+                      value={currentAction}
+                      onChange={(e) => setCurrentAction(e.target.value)}
+                      placeholder="Describe your action (e.g., 'investigate the mysterious door')"
+                      className="bg-white/10 border-green-400 text-white placeholder-green-300 focus:border-green-300 text-sm"
+                      disabled={isLoading}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && currentAction.trim()) {
+                          e.preventDefault();
+                          submitAction();
+                        }
+                      }}
+                    />
+                  )}
+                  
+                  {conversationMode === 'typing' && (
+                    <div className="grid grid-cols-2 gap-1 mt-2">
+                      {quickActionButtons.map((button) => (
+                        <Button
+                          key={button.action}
+                          size="sm"
+                          onClick={() => setCurrentAction(button.action)}
+                          className={`${button.color} text-xs transition-all duration-200 hover:scale-105 py-1 px-2 h-7`}
+                          disabled={isLoading}
+                        >
+                          {button.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-white font-medium mb-1 block text-sm">What do you say? (Optional)</label>
+                  <Textarea
+                    value={currentDialogue}
+                    onChange={(e) => setCurrentDialogue(e.target.value)}
+                    placeholder="Add dialogue or roleplay description..."
+                    className="bg-white/10 border-green-400 text-white placeholder-green-300 focus:border-green-300 min-h-[60px] text-sm"
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <Button
+                  onClick={submitAction}
+                  disabled={isLoading || !currentAction.trim()}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 transition-all duration-300 hover:shadow-green-500/25 py-2"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Processing...
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-lg">⚡</span>
+                      Take Action!
+                      <span className="text-lg">🎲</span>
+                    </div>
+                  )}
+                </Button>
+
+                {/* Game Tools */}
+                <div className="grid grid-cols-3 gap-1 mt-3">
+                  <Button
+                    onClick={() => setShowDiceRoller(true)}
+                    className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 transition-all duration-300 hover:scale-105 text-xs py-1 h-8"
+                  >
+                    🎲 Dice
+                  </Button>
+                  <Button
+                    onClick={() => setShowCharacterSheet(true)}
+                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 hover:scale-105 text-xs py-1 h-8"
+                  >
+                    📜 Sheet
+                  </Button>
+                  <Button
+                    onClick={() => setShowLinkupPanel(true)}
+                    className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 transition-all duration-300 hover:scale-105 animate-pulse text-xs py-1 h-8"
+                  >
+                    🔗 D&D
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bottom Left: AI Companions */}
+            <Card className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-lg border-blue-500/50 shadow-xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white flex items-center gap-2 text-lg">
+                  🤖 AI Companions
+                  <Badge variant="outline" className="bg-blue-600/20 border-blue-400 text-xs">
+                    {aiPlayers.length} Active
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-2 h-[calc(50vh-120px)] overflow-y-auto">
+                  {aiPlayers.map((player, index) => (
+                    <div key={index} className="p-2 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 rounded-lg border border-blue-400/30 transition-all duration-300 hover:from-blue-600/30 hover:to-cyan-600/30">
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <div className="text-white font-bold text-sm">{player.name}</div>
+                          <div className="text-blue-300 text-xs">{player.class} (Level {player.level})</div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => testVoice(player.voice_id)}
+                          disabled={currentlyPlaying === player.voice_id}
+                          className="bg-blue-600/80 hover:bg-blue-600 text-xs px-1 py-0.5 h-6"
+                        >
+                          {currentlyPlaying === player.voice_id ? '🔊' : '🎤'}
+                        </Button>
+                      </div>
+                      <div className="text-xs text-gray-300 mb-1">{player.personality}</div>
+                      <div className="text-xs text-blue-200 truncate">{player.voice_description}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bottom Right: Session Info */}
+            <Card className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-lg border-purple-500/50 shadow-xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-lg">📊 Session Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-gray-400 text-xs">Session ID</div>
+                    <div className="text-white font-mono text-xs">{session.session_id.slice(0, 8)}...</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Player</div>
+                    <div className="text-white text-xs">{session.human_player}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Voice Mode</div>
+                    <div className={voiceMode ? 'text-green-400 text-xs' : 'text-red-400 text-xs'}>
+                      {voiceMode ? '🔊 Enabled' : '🔇 Disabled'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Input Mode</div>
+                    <div className={`text-xs ${conversationMode === 'speaking' ? 'text-purple-400' : 'text-blue-400'}`}>
+                      {conversationMode === 'speaking' ? '🎤 Voice' : '⌨️ Typing'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Companions</div>
+                    <div className="text-blue-400 text-xs">{aiPlayers.length} Active</div>
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-gray-400 text-xs">Current Turn</div>
+                  <div className="text-green-400 text-sm font-bold">
+                    {session.current_turn === session.human_player ? 'Your Turn!' : `${session.current_turn}'s Turn`}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-gray-400 text-xs">Turn History</div>
+                  <div className="text-white text-xs">
+                    {gameHistory.length} actions taken
+                  </div>
+                </div>
+
+                <Separator className="bg-purple-500/30" />
+                
+                <Button
+                  onClick={() => {
+                    setSession(null);
+                    setGameHistory([]);
+                    setCurrentAction('');
+                    setCurrentDialogue('');
+                    setAudioQueue([]);
+                    setCurrentlyPlaying(null);
+                    setIsPlayingSequence(false);
+                    setError(null);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-red-400 text-red-400 hover:bg-red-400 hover:text-black transition-all duration-300 py-1 text-xs"
+                >
+                  🚪 End Session
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Sponsor Showcase - Moved to Bottom */}
+        {session && (
+          <div className="mt-8 mb-4">
+            <div className="bg-gradient-to-r from-black/30 to-black/10 backdrop-blur-sm border border-yellow-500/30 rounded-lg p-3">
+              <h2 className="text-sm font-medium text-yellow-400 mb-2 text-center">
+                🏆 AWS MCP Agents Hackathon - Multi-Sponsor Integration
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                  {
+                    name: "MiniMax Speech-02-HD",
+                    status: "ACTIVE",
+                    prize: "$2,750 + Ray-Ban",
+                    feature: "Voice AI",
+                    color: "from-red-500/60 to-orange-500/60"
+                  },
+                  {
+                    name: "Linkup.so",
+                    status: "ACTIVE", 
+                    prize: "D&D Enhancement",
+                    feature: "Real-time Content",
+                    color: "from-green-500/60 to-teal-500/60"
+                  },
+                  {
+                    name: "Auth0",
+                    status: "INTEGRATED",
+                    prize: "Swag Pack",
+                    feature: "Authentication",
+                    color: "from-blue-500/60 to-indigo-500/60"
+                  },
+                  {
+                    name: "Apify",
+                    status: "READY",
+                    prize: "Web Tools",
+                    feature: "Dynamic Content",
+                    color: "from-purple-500/60 to-pink-500/60"
+                  }
+                ].map((sponsor, index) => (
+                  <div key={index} className={`bg-gradient-to-br ${sponsor.color} p-0.5 rounded`}>
+                    <div className="bg-black/70 p-2 rounded h-full">
+                      <div className="text-white font-medium text-xs mb-0.5">{sponsor.name}</div>
+                      <div className="text-xs text-gray-400">{sponsor.status}</div>
+                      <div className="text-xs text-yellow-300">{sponsor.prize}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Enhanced Modal Components */}
+      {showDiceRoller && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-black/90 to-black/70 backdrop-blur-lg rounded-xl max-w-md w-full border border-red-500/50 shadow-2xl">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                  📊 Character Sheet
-                </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-red-400">🎲 Dice Roller</h2>
+                <Button
+                  onClick={() => setShowDiceRoller(false)}
+                  className="bg-gray-600 hover:bg-gray-700"
+                >
+                  ✕
+                </Button>
+              </div>
+              <DiceRoller />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCharacterSheet && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-black/90 to-black/70 backdrop-blur-lg rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/50 shadow-2xl">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-purple-400">📜 Character Sheet</h2>
                 <Button
                   onClick={() => setShowCharacterSheet(false)}
                   className="bg-gray-600 hover:bg-gray-700"
                 >
-                  ✕ Close
+                  ✕
                 </Button>
               </div>
-
               <CharacterSheet
                 character={playerCharacter}
-                onCharacterUpdate={(character) => {
-                  setPlayerCharacter(character);
-                  console.log("💾 Character updated:", character);
-                }}
-                onStatRoll={(stat, roll) => {
-                  console.log(`🎲 ${stat} check:`, roll);
-                  // Add stat roll to game history
-                  const newTurn = {
-                    player_name: session?.human_player || 'Player',
-                    action: 'ability_check',
-                    dialogue: `${stat.charAt(0).toUpperCase() + stat.slice(1)} check: ${roll}`,
-                    timestamp: new Date().toISOString()
-                  };
-                  setGameHistory(prev => [newTurn, ...prev]);
-                }}
+                onCharacterUpdate={setPlayerCharacter}
               />
             </div>
           </div>
@@ -1323,12 +1357,12 @@ export default function MultiplayerPage() {
 
       {/* Game Guide Modal */}
       {showGameGuide && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-black/90 to-black/70 backdrop-blur-lg rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-blue-500/50 shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                  📖 How to Play Multiplayer D&D
+                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
+                  📖 How to Play D&D with AI
                 </h2>
                 <Button
                   onClick={() => setShowGameGuide(false)}
@@ -1375,39 +1409,6 @@ export default function MultiplayerPage() {
                         • "I cast healing light on my ally"<br/>
                         • "I use magic missile"<br/>
                         • "I cast detect magic"
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Dialogue Examples */}
-                <Card className="bg-black/30 border-purple-500/50">
-                  <CardHeader>
-                    <CardTitle className="text-white">💬 What to Say</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <div className="p-3 bg-yellow-600/20 rounded">
-                      <div className="text-yellow-300 font-bold">🗨️ In-Character Speech</div>
-                      <div className="text-gray-300">
-                        • "Hello, kind innkeeper! Do you have any rooms available?"<br/>
-                        • "We're looking for information about the missing merchant."<br/>
-                        • "Stand back, foul creature! We will not let you pass!"
-                      </div>
-                    </div>
-                    <div className="p-3 bg-cyan-600/20 rounded">
-                      <div className="text-cyan-300 font-bold">🎭 Roleplay Descriptions</div>
-                      <div className="text-gray-300">
-                        • "I cautiously approach the door, checking for any signs of danger."<br/>
-                        • "I draw my sword and prepare for battle."<br/>
-                        • "I smile warmly and extend my hand in friendship."
-                      </div>
-                    </div>
-                    <div className="p-3 bg-pink-600/20 rounded">
-                      <div className="text-pink-300 font-bold">🤝 Party Coordination</div>
-                      <div className="text-gray-300">
-                        • "Thorgar, can you tank this enemy while I heal?"<br/>
-                        • "Elara, do you know any spells that could help here?"<br/>
-                        • "Let's work together to solve this puzzle."
                       </div>
                     </div>
                   </CardContent>
@@ -1484,14 +1485,47 @@ export default function MultiplayerPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Voice Features */}
+                <Card className="bg-black/30 border-purple-500/50">
+                  <CardHeader>
+                    <CardTitle className="text-white">🎤 Voice Features</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="p-3 bg-purple-600/20 rounded">
+                      <div className="text-purple-300 font-bold">🎭 Natural Conversation</div>
+                      <div className="text-gray-300">
+                        Click the voice toggle to speak directly to your AI companions! Just press "🎤 Speak" and talk naturally:
+                        <br/>• "Hey everyone, I want to investigate that door"
+                        <br/>• "Can we attack the creature together?"
+                        <br/>• "What do you think we should do next?"
+                      </div>
+                    </div>
+                    <div className="p-3 bg-green-600/20 rounded">
+                      <div className="text-green-300 font-bold">🔊 Speech Recognition</div>
+                      <div className="text-gray-300">
+                        • Speak clearly in a quiet environment<br/>
+                        • The system converts your speech to text automatically<br/>
+                        • Edit the text if needed before submitting<br/>
+                        • Works best in Chrome, Safari, and Edge browsers
+                      </div>
+                    </div>
+                    <div className="p-3 bg-yellow-600/20 rounded">
+                      <div className="text-yellow-300 font-bold">⚡ MiniMax Speech-02-HD</div>
+                      <div className="text-gray-300">
+                        Experience the world's most advanced text-to-speech technology with unique character voices for each AI companion and the Dungeon Master.
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
               <div className="mt-6 text-center">
                 <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 p-4 rounded-lg border border-purple-400/30">
-                  <h3 className="text-lg font-bold text-white mb-2">🏆 You're Playing in a Hackathon Demo!</h3>
+                  <h3 className="text-lg font-bold text-white mb-2">🏆 You're Playing a Hackathon Demo!</h3>
                   <p className="text-gray-300 text-sm">
-                    This is a cutting-edge AI D&D system featuring MiniMax Speech-02-HD voice acting, 
-                    autonomous AI companions, and real-time multiplayer gameplay. Have fun exploring!
+                    This cutting-edge AI D&D system showcases MiniMax Speech-02-HD, Linkup.so real-time content, 
+                    Auth0 authentication, and autonomous AI companions in an epic multiplayer adventure!
                   </p>
                 </div>
               </div>
@@ -1502,8 +1536,8 @@ export default function MultiplayerPage() {
 
       {/* Linkup Panel Modal */}
       {showLinkupPanel && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-green-500/50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-black/90 to-black/70 backdrop-blur-lg rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-green-500/50 shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-400">
@@ -1521,8 +1555,9 @@ export default function MultiplayerPage() {
                 onContentAdded={(content, type) => {
                   console.log(`🔗 Linkup content added: ${type}`, content);
                   
-                  // Add Linkup content to game history
-                  const newTurn = {
+                  // Add Linkup content to game history with unique ID
+                  const newTurn: GameTurn = {
+                    id: `linkup-${Date.now()}`,
                     player_name: '🔗 Linkup.so',
                     action: `web_search_${type}`,
                     dialogue: `📚 Found D&D content: ${content.substring(0, 200)}...`,
@@ -1530,25 +1565,8 @@ export default function MultiplayerPage() {
                   };
                   setGameHistory(prev => [newTurn, ...prev]);
                   
-                  // Show success notification
-                  const notification = document.createElement('div');
-                  notification.className = 'fixed top-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-50 animate-bounce';
-                  notification.innerHTML = `
-                    <div class="flex items-center gap-2">
-                      <span class="text-xl">🔗</span>
-                      <div>
-                        <div class="font-bold">Linkup Content Added!</div>
-                        <div class="text-sm">Enhanced with real-time web content</div>
-                      </div>
-                    </div>
-                  `;
-                  document.body.appendChild(notification);
-                  
-                  setTimeout(() => {
-                    if (document.body.contains(notification)) {
-                      document.body.removeChild(notification);
-                    }
-                  }, 4000);
+                  // Show enhanced success notification
+                  showNotification('🔗 Linkup content added to game!', 'success');
                   
                   // Auto-close modal after adding content
                   setTimeout(() => {
@@ -1560,6 +1578,14 @@ export default function MultiplayerPage() {
           </div>
         </div>
       )}
+
+      {/* Error Notification */}
+      {error && (
+        <ErrorDisplay error={error} />
+      )}
+
+      {/* Connection Status Indicator */}
+      <ConnectionStatus />
     </div>
   );
 } 

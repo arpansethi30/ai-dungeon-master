@@ -1,5 +1,5 @@
 # 🏆 HACKATHON WINNING STRATEGY
-## "Chronicles of AI: The Ultimate AI Dungeon Master"
+## "NeuroDungeon: The Ultimate AI Dungeon Master"
 
 ### 💰 PRIZE TARGET ANALYSIS ($15,000+ POTENTIAL)
 

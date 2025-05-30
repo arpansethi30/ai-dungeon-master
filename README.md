@@ -1,4 +1,4 @@
-# 🎮 Chronicles of AI - AI Dungeon Master
+# 🎮 NeuroDungeon - AI Dungeon Master
 
 An AI-powered Dungeons & Dragons game master that creates immersive campaigns with voice-acted NPCs and dynamic storytelling.
 

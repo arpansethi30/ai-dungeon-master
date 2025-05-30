@@ -88,7 +88,7 @@ FRONTEND_URL=http://localhost:3000
 
 # AWS MCP Agents Hackathon
 HACKATHON_MODE=True
-SUBMISSION_TITLE="Chronicles of AI: The Ultimate AI Dungeon Master"
+SUBMISSION_TITLE="NeuroDungeon: The Ultimate AI Dungeon Master"
 TARGET_PRIZES="auth0,minimax,browserbase,apify,linkup,senso,overall_winner"
 TOTAL_PRIZE_VALUE=15000
 

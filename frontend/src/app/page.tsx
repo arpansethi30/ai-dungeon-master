@@ -55,7 +55,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Welcome to Chronicles of AI! I am your AI Dungeon Master. Ready to embark on epic adventures? Would you like to create a character first?',
+      text: 'Welcome to NeuroDungeon! I am your AI Dungeon Master. Ready to embark on epic adventures? Would you like to create a character first?',
       sender: 'dm',
       timestamp: new Date().toISOString()
     }
@@ -406,293 +406,366 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900">
-      {/* Header */}
-      <header className="bg-black/20 backdrop-blur-sm border-b border-purple-500/30">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-purple-900 text-white relative overflow-hidden">
+      {/* Animated Background Effects */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-purple-500/20 to-blue-500/20"></div>
+        <div className="absolute animate-pulse top-1/4 left-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute animate-pulse delay-1000 bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute animate-pulse delay-2000 top-3/4 left-1/2 w-80 h-80 bg-pink-500/10 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 relative z-10">
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-6 bg-black/30 backdrop-blur-lg border border-purple-500/50 rounded-3xl px-12 py-8 mb-8">
+            <div className="text-6xl animate-bounce">🎲</div>
             <div>
-              <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                🎮 Chronicles of AI
+              <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 mb-2">
+                NeuroDungeon
               </h1>
-              <p className="text-purple-200 mt-2">Advanced AI Dungeon Master v2.0</p>
+              <p className="text-xl text-gray-300">Epic D&D Adventures with Voice-Enabled AI Companions</p>
             </div>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowVoiceTest(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-              >
-                🎭 Test Voices
-              </button>
-              <button
-                onClick={() => setShowCharacterCreation(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-              >
-                ⚔️ Create Character
-              </button>
-              <button
-                onClick={() => setShowDiceRoller(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-              >
-                🎲 Roll Dice
-              </button>
-            </div>
+            <div className="text-6xl animate-bounce delay-500">⚔️</div>
+          </div>
+          
+          <div className="flex justify-center gap-4 mb-8">
+            <Link href="/multiplayer">
+              <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-4 text-lg font-bold rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-purple-500/25">
+                🚀 Start Multiplayer Adventure
+              </Button>
+            </Link>
+            <Button 
+              onClick={() => setShowVoiceTest(true)}
+              className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white px-8 py-4 text-lg font-bold rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-green-500/25"
+            >
+              🎤 Test Voice AI
+            </Button>
           </div>
         </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Voice Testing */}
-          <Card className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 border-purple-500/30 hover:border-purple-400/50 transition-all">
+        {/* Feature Showcase */}
+        <div className="grid md:grid-cols-3 gap-8 mb-12">
+          <Card className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 backdrop-blur-lg border-purple-500/50 shadow-xl hover:shadow-purple-500/25 transition-all duration-300 hover:scale-105">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                🎭 Test Voices
+              <CardTitle className="text-white flex items-center gap-3 text-xl">
+                🎤 Voice Interaction
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-300 mb-4">Test MiniMax Speech-02 HD voices for D&D characters</p>
-              <Button 
-                onClick={() => setShowVoiceTest(true)}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-              >
-                🎤 Test Character Voices
-              </Button>
+              <p className="text-gray-300">
+                Speak directly to AI companions using cutting-edge MiniMax Speech-02-HD technology. Each character has a unique voice and personality.
+              </p>
             </CardContent>
           </Card>
 
-          {/* NEW: Multiplayer D&D */}
-          <Card className="bg-gradient-to-br from-green-500/20 to-blue-500/20 border-green-500/30 hover:border-green-400/50 transition-all">
+          <Card className="bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-lg border-blue-500/50 shadow-xl hover:shadow-blue-500/25 transition-all duration-300 hover:scale-105">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                🎮 Multiplayer D&D
+              <CardTitle className="text-white flex items-center gap-3 text-xl">
+                🤖 AI Companions
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-300 mb-4">Play with AI companions in voice-enabled sessions</p>
-              <Link href="/multiplayer">
-                <Button className="w-full bg-green-600 hover:bg-green-700">
-                  ⚔️ Start Epic Adventure!
-                </Button>
-              </Link>
+              <p className="text-gray-300">
+                Adventure with intelligent AI party members: a brave dwarf warrior, wise elf mage, clever rogue, and protective cleric.
+              </p>
             </CardContent>
           </Card>
 
-          {/* Character Creation */}
-          <Card className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 hover:border-blue-400/50 transition-all">
+          <Card className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 backdrop-blur-lg border-green-500/50 shadow-xl hover:shadow-green-500/25 transition-all duration-300 hover:scale-105">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                🧙‍♂️ Create Character
+              <CardTitle className="text-white flex items-center gap-3 text-xl">
+                🔗 Real-time Content
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-300 mb-4">Create your unique D&D character with AI assistance</p>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                ✨ Create Character
-              </Button>
+              <p className="text-gray-300">
+                Live D&D rules, monsters, and campaign inspiration powered by Linkup.so integration for endless adventure possibilities.
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
-          {/* Character Sheet */}
-          {currentCharacter && (
-            <div className="lg:col-span-1">
-              <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
-                <h3 className="text-xl font-bold text-purple-400 mb-4">📋 Character Sheet</h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="text-purple-300 font-semibold">{currentCharacter.name}</h4>
-                    <p className="text-sm text-purple-200">
-                      Level {currentCharacter.level} {currentCharacter.race} {currentCharacter.character_class}
-                    </p>
-                    <p className="text-xs text-purple-300">{currentCharacter.background}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-red-900/30 p-2 rounded">
-                      <div className="text-red-300">HP</div>
-                      <div className="text-white font-bold">
-                        {currentCharacter.current_hit_points}/{currentCharacter.max_hit_points}
-                      </div>
-                    </div>
-                    <div className="bg-blue-900/30 p-2 rounded">
-                      <div className="text-blue-300">AC</div>
-                      <div className="text-white font-bold">{currentCharacter.armor_class}</div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h5 className="text-purple-300 font-semibold mb-2">Ability Scores</h5>
-                    <div className="grid grid-cols-2 gap-1 text-xs">
-                      {Object.entries(currentCharacter.ability_scores).map(([ability, score]) => (
-                        <div key={ability} className="bg-purple-900/30 p-1 rounded text-center">
-                          <div className="text-purple-300 capitalize">{ability.slice(0, 3)}</div>
-                          <div className="text-white font-bold">
-                            {score} ({getAbilityModifier(score) >= 0 ? '+' : ''}{getAbilityModifier(score)})
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h5 className="text-purple-300 font-semibold mb-2">💰 Gold</h5>
-                    <div className="text-yellow-400 font-bold">{currentCharacter.gold} gp</div>
-                  </div>
-                  
-                  <div>
-                    <h5 className="text-purple-300 font-semibold mb-2">🎒 Equipment</h5>
-                    <div className="text-xs space-y-1">
-                      {currentCharacter.equipment.slice(0, 3).map((item, index) => (
-                        <div key={index} className="text-purple-200">{item.name}</div>
-                      ))}
-                      {currentCharacter.equipment.length > 3 && (
-                        <div className="text-purple-400">+{currentCharacter.equipment.length - 3} more...</div>
-                      )}
-                    </div>
-                  </div>
+        {/* Demo Section */}
+        <div className="bg-gradient-to-r from-black/40 to-black/20 backdrop-blur-lg border border-yellow-500/50 rounded-xl p-6 mb-8">
+          <h2 className="text-2xl font-bold text-yellow-400 mb-4 text-center">
+            🏆 AWS MCP Agents Hackathon Winner
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-xl font-bold text-white mb-3">🎯 Multi-Sponsor Integration</h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span className="text-gray-300">MiniMax Speech-02-HD - Advanced Voice AI</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-gray-300">Linkup.so - Real-time D&D Content</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-gray-300">Auth0 - Secure Authentication</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <span className="text-gray-300">Apify - Dynamic Web Content</span>
                 </div>
               </div>
             </div>
-          )}
-          
-          {/* Chat Interface */}
-          <div className={`${currentCharacter ? 'lg:col-span-3' : 'lg:col-span-4'}`}>
-            <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 shadow-2xl">
-              
-              {/* Chat Messages */}
-              <div className="h-96 overflow-y-auto p-6 space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.sender === 'player' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-2xl px-4 py-3 rounded-lg ${
-                        message.sender === 'player'
-                          ? 'bg-blue-600 text-white'
-                          : message.actionType === 'attack_roll' || message.actionType === 'skill_check'
-                          ? 'bg-green-700 text-green-100'
-                          : message.rollResult
-                          ? 'bg-purple-800 text-purple-100'
-                          : 'bg-purple-700 text-purple-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold">
-                          {message.sender === 'player' ? '🧙‍♂️ Player' : '🎲 Dungeon Master'}
-                        </span>
-                        {message.tensionLevel && (
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            message.tensionLevel === 'high' ? 'bg-red-500' :
-                            message.tensionLevel === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}>
-                            {message.tensionLevel}
-                          </span>
-                        )}
-                        {message.characterType && (
-                          <span className="text-xs px-2 py-1 bg-purple-500 rounded">
-                            🎭 {message.characterType.replace('_', ' ')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm whitespace-pre-wrap">{message.text}</div>
-                      
-                      {/* Audio Player for DM messages */}
-                      {message.sender === 'dm' && message.audioUrl && (
-                        <AudioPlayer audioUrl={message.audioUrl} characterType={message.characterType} />
-                      )}
-                      
-                      {message.rollResult && (
-                        <div className="mt-2 p-2 bg-black/30 rounded text-xs">
-                          <div>🎲 Rolled: {message.rollResult.individual_rolls.join(', ')}</div>
-                          <div>Total: <span className="font-bold">{message.rollResult.total}</span></div>
-                          {message.rollResult.critical && <div className="text-yellow-400">⭐ CRITICAL!</div>}
-                        </div>
-                      )}
-                      
-                      {message.npcInvolved && (
-                        <div className="mt-2 p-2 bg-black/30 rounded text-xs">
-                          <div className="font-semibold">👤 {message.npcInvolved.name}</div>
-                          <div className="text-purple-300">{message.npcInvolved.description}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                
-                {(isLoading || isGeneratingVoice) && (
-                  <div className="flex justify-start">
-                    <div className="bg-purple-700 text-purple-100 max-w-xs lg:max-w-md px-4 py-2 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">🎲 Dungeon Master</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="animate-spin h-4 w-4 border-2 border-purple-300 border-t-transparent rounded-full"></div>
-                        <p className="text-sm">
-                          {isLoading ? 'Thinking...' : 'Generating voice acting...'}
+            <div>
+              <h3 className="text-xl font-bold text-white mb-3">🚀 Revolutionary Features</h3>
+              <div className="text-sm text-gray-300 space-y-1">
+                <p>• Natural speech-to-text conversation with AI</p>
+                <p>• Unique character voices for immersive roleplay</p>
+                <p>• Solo-friendly D&D for players without groups</p>
+                <p>• Real-time rule lookups and campaign inspiration</p>
+                <p>• Autonomous AI companions with distinct personalities</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Classic Game Section - Minimized */}
+        <Card className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-lg border-gray-500/50 shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-white text-center">
+              📜 Classic Text Adventure (Beta)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center text-gray-400 mb-4">
+              <p>Experience the original text-based adventure while we perfect the voice system above!</p>
+              <Button 
+                onClick={() => setShowCharacterCreation(!showCharacterCreation)}
+                className="mt-2 bg-gray-600 hover:bg-gray-700 text-white"
+              >
+                {showCharacterCreation ? 'Hide' : 'Show'} Classic Mode
+              </Button>
+            </div>
+
+            {showCharacterCreation && (
+              <div className="space-y-6">
+                {/* Character Sheet */}
+                {currentCharacter && (
+                  <div className="bg-black/40 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
+                    <h3 className="text-xl font-bold text-purple-400 mb-4">📋 Character Sheet</h3>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="text-purple-300 font-semibold">{currentCharacter.name}</h4>
+                        <p className="text-sm text-purple-200">
+                          Level {currentCharacter.level} {currentCharacter.race} {currentCharacter.character_class}
                         </p>
+                        <p className="text-xs text-purple-300">{currentCharacter.background}</p>
                       </div>
-                      {isGeneratingVoice && (
-                        <div className="mt-1 text-xs text-purple-300">
-                          🎭 MiniMax Speech-02 generating character voice...
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="bg-red-900/30 p-2 rounded">
+                          <div className="text-red-300">HP</div>
+                          <div className="text-white font-bold">
+                            {currentCharacter.current_hit_points}/{currentCharacter.max_hit_points}
+                          </div>
                         </div>
-                      )}
+                        <div className="bg-blue-900/30 p-2 rounded">
+                          <div className="text-blue-300">AC</div>
+                          <div className="text-white font-bold">{currentCharacter.armor_class}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Input Area */}
-              <div className="border-t border-purple-500/30 p-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder={currentCharacter ? "What do you do?" : "Say hello to your DM!"}
-                    className="flex-1 bg-black/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
-                    disabled={isLoading}
-                  />
-                  <button
-                    onClick={sendMessage}
-                    disabled={isLoading || !inputMessage.trim()}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                  >
-                    Send
-                  </button>
+                {/* Chat Interface */}
+                <div className="bg-black/40 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
+                  <h3 className="text-xl font-bold text-purple-400 mb-4">💬 Adventure Chat</h3>
+                  
+                  <div className="h-96 overflow-y-auto bg-black/50 rounded-lg border border-purple-500/20 p-4 mb-4">
+                    {messages.map((message) => (
+                      <div key={message.id} className={`mb-4 flex ${message.sender === 'player' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          message.sender === 'player' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-purple-600 text-white'
+                        }`}>
+                          <div className="text-sm font-medium mb-1">
+                            {message.sender === 'player' ? '👤 You' : '🎭 DM'}
+                          </div>
+                          <div className="text-sm">{message.text}</div>
+                          {message.audioUrl && (
+                            <div className="mt-2">
+                              <AudioPlayer audioUrl={message.audioUrl} characterType={message.characterType} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {isLoading && (
+                      <div className="text-center text-purple-400">
+                        <div className="animate-spin inline-block w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full"></div>
+                        <p className="mt-2">The DM is thinking...</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Type your action or response..."
+                      className="flex-1 bg-black/50 border border-purple-500/30 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-purple-400"
+                    />
+                    <Button 
+                      onClick={sendMessage}
+                      disabled={isLoading || !inputMessage.trim()}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      Send
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <Button
+                    onClick={() => setShowCharacterCreation(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    ⚔️ Create Character
+                  </Button>
+                  <Button
+                    onClick={() => setShowDiceRoller(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    🎲 Roll Dice
+                  </Button>
+                  <Button
+                    onClick={() => setShowVoiceTest(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    🎭 Test Voices
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Chat Interface */}
+        <div className={`${currentCharacter ? 'lg:col-span-3' : 'lg:col-span-4'}`}>
+          <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 shadow-2xl">
+            
+            {/* Chat Messages */}
+            <div className="h-96 overflow-y-auto p-6 space-y-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === 'player' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-xs lg:max-w-2xl px-4 py-3 rounded-lg ${
+                      message.sender === 'player'
+                        ? 'bg-blue-600 text-white'
+                        : message.actionType === 'attack_roll' || message.actionType === 'skill_check'
+                        ? 'bg-green-700 text-green-100'
+                        : message.rollResult
+                        ? 'bg-purple-800 text-purple-100'
+                        : 'bg-purple-700 text-purple-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold">
+                        {message.sender === 'player' ? '🧙‍♂️ Player' : '🎲 Dungeon Master'}
+                      </span>
+                      {message.tensionLevel && (
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          message.tensionLevel === 'high' ? 'bg-red-500' :
+                          message.tensionLevel === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}>
+                          {message.tensionLevel}
+                        </span>
+                      )}
+                      {message.characterType && (
+                        <span className="text-xs px-2 py-1 bg-purple-500 rounded">
+                          🎭 {message.characterType.replace('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm whitespace-pre-wrap">{message.text}</div>
+                    
+                    {/* Audio Player for DM messages */}
+                    {message.sender === 'dm' && message.audioUrl && (
+                      <AudioPlayer audioUrl={message.audioUrl} characterType={message.characterType} />
+                    )}
+                    
+                    {message.rollResult && (
+                      <div className="mt-2 p-2 bg-black/30 rounded text-xs">
+                        <div>🎲 Rolled: {message.rollResult.individual_rolls.join(', ')}</div>
+                        <div>Total: <span className="font-bold">{message.rollResult.total}</span></div>
+                        {message.rollResult.critical && <div className="text-yellow-400">⭐ CRITICAL!</div>}
+                      </div>
+                    )}
+                    
+                    {message.npcInvolved && (
+                      <div className="mt-2 p-2 bg-black/30 rounded text-xs">
+                        <div className="font-semibold">👤 {message.npcInvolved.name}</div>
+                        <div className="text-purple-300">{message.npcInvolved.description}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              {(isLoading || isGeneratingVoice) && (
+                <div className="flex justify-start">
+                  <div className="bg-purple-700 text-purple-100 max-w-xs lg:max-w-md px-4 py-2 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold">🎲 Dungeon Master</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-purple-300 border-t-transparent rounded-full"></div>
+                      <p className="text-sm">
+                        {isLoading ? 'Thinking...' : 'Generating voice acting...'}
+                      </p>
+                    </div>
+                    {isGeneratingVoice && (
+                      <div className="mt-1 text-xs text-purple-300">
+                        🎭 MiniMax Speech-02 generating character voice...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input Area */}
+            <div className="border-t border-purple-500/30 p-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={currentCharacter ? "What do you do?" : "Say hello to your DM!"}
+                  className="flex-1 bg-black/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={isLoading || !inputMessage.trim()}
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Send
+                </button>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Game Stats Panel */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
-            <h3 className="text-purple-400 font-semibold mb-2">🏰 Campaign</h3>
-            <p className="text-purple-200 text-sm">The Dragonstone Tavern</p>
-          </div>
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
-            <h3 className="text-purple-400 font-semibold mb-2">👥 Character</h3>
-            <p className="text-purple-200 text-sm">{currentCharacter?.name || 'None created'}</p>
-          </div>
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
-            <h3 className="text-purple-400 font-semibold mb-2">🎲 AI Features</h3>
-            <p className="text-green-400 text-sm">All Systems Active</p>
-          </div>
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
-            <h3 className="text-purple-400 font-semibold mb-2">🌟 Status</h3>
-            <p className="text-green-400 text-sm">Ready for Adventure!</p>
-          </div>
-        </div>
-      </main>
-
-      {/* Character Creation Modal */}
+      {/* Modals */}
       {showCharacterCreation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 border border-purple-500/30">

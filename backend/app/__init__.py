@@ -1,1 +1,1 @@
-# Chronicles of AI - Backend Package 
+# NeuroDungeon - Backend Package 

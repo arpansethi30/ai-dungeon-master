@@ -3,7 +3,7 @@
 # AI Dungeon Master - Environment Setup Script
 # Run this script to set up your environment variables
 
-echo "🎮 Chronicles of AI - Environment Setup"
+echo "🎮 NeuroDungeon - Environment Setup"
 echo "=========================================="
 
 # Check if we're in the right directory

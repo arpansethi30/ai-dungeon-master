@@ -1,4 +1,4 @@
-# 🎮 Chronicles of AI - Demo Instructions
+# 🎮 NeuroDungeon - Demo Instructions
 
 ## 🚀 Quick Start Guide
 
@@ -141,7 +141,7 @@ export APIFY_API_TOKEN="your_apify_token"
 ## 🎪 Demo Script for Judges
 
 ### **Opening (30 seconds)**
-"Welcome to Chronicles of AI - the world's first voice-acted AI Dungeon Master! This system uses MiniMax Speech-02 to generate real character voices, and agentic AI to create intelligent, adaptive storytelling."
+"Welcome to NeuroDungeon - the world's first voice-acted AI Dungeon Master! This system uses MiniMax Speech-02 to generate real character voices, and agentic AI to create intelligent, adaptive storytelling."
 
 ### **Voice Demo (60 seconds)**
 1. Click "🎭 Test Voices"

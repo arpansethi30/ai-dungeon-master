@@ -1,9 +1,9 @@
-# 🏆 HACKATHON FINAL STATUS - Chronicles of AI
+# 🏆 HACKATHON FINAL STATUS - NeuroDungeon
 
 ## 🎯 **COMPETITION OVERVIEW**
 - **Event**: AWS MCP Agents Hackathon
 - **Mandatory**: Model Context Protocol (MCP) integration
-- **Submission**: "Chronicles of AI: The Ultimate AI Dungeon Master"
+- **Submission**: "NeuroDungeon: The Ultimate AI Dungeon Master"
 - **Target Prizes**: $15,000+ total value
 
 ---

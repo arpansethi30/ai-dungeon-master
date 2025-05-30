@@ -143,7 +143,7 @@ python main.py
 ## 🎬 **DEMO STRATEGY**
 
 ### **30-Second Hook**
-"This is Chronicles of AI - the world's first truly agentic AI Dungeon Master that uses MCP to chain multiple AI agents, giving you voice-acted NPCs, real-time web content, and intelligent rule management."
+"This is NeuroDungeon - the world's first truly agentic AI Dungeon Master that uses MCP to chain multiple AI agents, giving you voice-acted NPCs, real-time web content, and intelligent rule management."
 
 ### **2-Minute Deep Dive**
 1. Show beautiful UI and D&D mechanics

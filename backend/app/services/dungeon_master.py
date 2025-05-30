@@ -433,7 +433,7 @@ class RealDungeonMaster:
             self.world_state["time_of_day"], "day"
         )
     
-    def get_dm_introduction(self, campaign_name: str = "Chronicles of AI") -> str:
+    def get_dm_introduction(self, campaign_name: str = "NeuroDungeon") -> str:
         """Get an immersive introduction from the real AI DM"""
         
         personality_intros = {

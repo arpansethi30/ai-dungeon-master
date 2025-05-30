@@ -1,4 +1,4 @@
-# 🚀 Chronicles of AI - Environment Setup Guide
+# 🚀 NeuroDungeon - Environment Setup Guide
 
 ## 🏆 HACKATHON SPONSOR API KEYS (Prize Opportunities)
 
@@ -91,7 +91,7 @@ Create `backend/.env` file:
 ```bash
 # Copy this into backend/.env
 # ================================================================
-# CHRONICLES OF AI - AGENTIC D&D SYSTEM
+# NeuroDungeon - AGENTIC D&D SYSTEM
 # ================================================================
 
 # CORE AI (REQUIRED)
