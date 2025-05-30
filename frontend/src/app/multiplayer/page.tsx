@@ -8,6 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { DiceRoller } from '@/components/ui/dice-roller';
+import { CharacterSheet } from '@/components/ui/character-sheet';
+import { LinkupPanel } from '@/components/ui/linkup-panel';
+import { useUser, getUserDisplayName, getUserExperienceLevel, isPremiumUser, mockLogin, mockLogout } from '@/lib/auth0';
 
 interface AIPlayer {
   name: string;
@@ -57,6 +61,10 @@ export default function MultiplayerPage() {
   const [voiceMode, setVoiceMode] = useState(true);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [showGameGuide, setShowGameGuide] = useState(false);
+  const [showCharacterSheet, setShowCharacterSheet] = useState(false);
+  const [showDiceRoller, setShowDiceRoller] = useState(false);
+  const [showLinkupPanel, setShowLinkupPanel] = useState(false);
+  const [playerCharacter, setPlayerCharacter] = useState(null);
   
   // Audio Management
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -64,6 +72,9 @@ export default function MultiplayerPage() {
   const [audioQueue, setAudioQueue] = useState<Array<{text: string, speaker: string, audioUrl: string}>>([]);
   const [isPlayingSequence, setIsPlayingSequence] = useState(false);
   const [volume, setVolume] = useState(0.8);
+
+  // Auth0 integration
+  const user = useUser();
 
   // Load AI Players on Mount
   useEffect(() => {
@@ -96,8 +107,11 @@ export default function MultiplayerPage() {
   };
 
   const createSession = async () => {
-    if (!playerName.trim()) {
-      alert('Please enter your character name!');
+    // Use Auth0 user name if available, otherwise use manual input
+    const effectivePlayerName = user.user ? getUserDisplayName(user.user) : playerName.trim();
+    
+    if (!effectivePlayerName) {
+      alert('Please enter your character name or login with Auth0!');
       return;
     }
 
@@ -107,8 +121,16 @@ export default function MultiplayerPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player_name: playerName.trim(),
-          voice_mode: voiceMode
+          player_name: effectivePlayerName,
+          voice_mode: voiceMode,
+          // Include Auth0 user metadata if available
+          user_profile: user.user ? {
+            auth0_id: user.user.sub,
+            email: user.user.email,
+            picture: user.user.picture,
+            experience_level: getUserExperienceLevel(user.user),
+            is_premium: isPremiumUser(user.user)
+          } : null
         })
       });
 
@@ -399,6 +421,73 @@ export default function MultiplayerPage() {
                 💰 $2,750 + Ray-Ban Prize
               </Badge>
             </div>
+            
+            {/* Auth0 User Profile Section */}
+            <div className="mt-6 p-4 bg-gradient-to-r from-orange-900/30 to-orange-700/20 rounded-xl border border-orange-400/50">
+              {user.user ? (
+                <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center gap-3">
+                    {user.user.picture && (
+                      <img 
+                        src={user.user.picture} 
+                        alt="Profile" 
+                        className="w-12 h-12 rounded-full border-2 border-orange-400"
+                      />
+                    )}
+                    <div>
+                      <div className="text-lg font-bold text-orange-300">
+                        🔐 Welcome, {getUserDisplayName(user.user)}!
+                      </div>
+                      <div className="text-sm text-orange-200">
+                        {isPremiumUser(user.user) && '👑 Premium • '}
+                        Experience: {getUserExperienceLevel(user.user)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="bg-orange-600/30 border-orange-400">
+                      🔐 Mock Auth Active
+                    </Badge>
+                    <Button
+                      onClick={mockLogout}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-1 text-sm"
+                    >
+                      Logout
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center space-y-3">
+                  <div className="text-lg font-bold text-orange-300">🔐 Demo Authentication</div>
+                  <p className="text-orange-200 text-sm">
+                    Experience the D&D platform with demo user profiles (Auth0 integration in progress)
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <Button
+                      onClick={() => mockLogin('demo-user')}
+                      className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-300 transform hover:scale-105"
+                    >
+                      🔐 Login as Demo Player
+                    </Button>
+                    <Button
+                      onClick={() => mockLogin('alex-dragonslayer')}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-300 transform hover:scale-105"
+                    >
+                      🐉 Login as Alex Dragon Slayer
+                    </Button>
+                    <Button
+                      onClick={() => setPlayerName('Guest Player')}
+                      className="bg-gray-600 hover:bg-gray-700"
+                    >
+                      🎮 Continue as Guest
+                    </Button>
+                  </div>
+                  <div className="text-xs text-orange-200">
+                    Try different user profiles to see Auth0-style authentication in action!
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 mb-8">
@@ -413,20 +502,40 @@ export default function MultiplayerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-3">
-                  <label className="text-white font-medium text-lg flex items-center gap-2">
-                    ⚔️ Your Character Name:
-                  </label>
-                  <Input
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    placeholder="Enter your heroic character name..."
-                    className="text-lg p-4 bg-white/10 border-blue-400 text-white placeholder-blue-300 focus:border-blue-300 transition-all duration-300"
-                  />
-                  <div className="text-sm text-blue-200">
-                    Choose a name worthy of legend! 🌟
+                {!user.user && (
+                  <div className="space-y-3">
+                    <label className="text-white font-medium text-lg flex items-center gap-2">
+                      ⚔️ Your Character Name:
+                    </label>
+                    <Input
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      placeholder="Enter your heroic character name..."
+                      className="text-lg p-4 bg-white/10 border-blue-400 text-white placeholder-blue-300 focus:border-blue-300 transition-all duration-300"
+                    />
+                    <div className="text-sm text-blue-200">
+                      Choose a name worthy of legend! 🌟 (Or login with Auth0 for saved profiles)
+                    </div>
                   </div>
-                </div>
+                )}
+                
+                {user.user && (
+                  <div className="space-y-3">
+                    <div className="p-4 bg-green-600/20 rounded-lg border border-green-400/50">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-300 mb-2">
+                          ⚔️ Ready to Adventure!
+                        </div>
+                        <div className="text-green-200">
+                          Playing as: <strong>{getUserDisplayName(user.user)}</strong>
+                        </div>
+                        <div className="text-sm text-green-200 mt-1">
+                          🔐 Authenticated with Auth0 • Profile automatically loaded
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3 p-4 bg-purple-600/20 rounded-lg border border-purple-400/30">
@@ -451,7 +560,7 @@ export default function MultiplayerPage() {
 
                 <Button 
                   onClick={createSession}
-                  disabled={isCreatingSession || !playerName.trim()}
+                  disabled={isCreatingSession || (!user.user && !playerName.trim())}
                   className="w-full text-xl p-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 shadow-lg"
                 >
                   {isCreatingSession ? (
@@ -461,7 +570,7 @@ export default function MultiplayerPage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      ⚔️ Begin Epic Adventure!
+                      {user.user ? '🔐 Begin Authenticated Adventure!' : '⚔️ Begin Epic Adventure!'}
                       <span className="animate-bounce">🌟</span>
                     </div>
                   )}
@@ -532,6 +641,70 @@ export default function MultiplayerPage() {
                 </ScrollArea>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Premium Sponsor Showcase */}
+          <div className="mb-8 p-6 bg-gradient-to-r from-black/60 to-black/40 backdrop-blur-lg rounded-xl border border-blue-500/30">
+            <h3 className="text-2xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 mb-6">
+              🚀 Powered by Industry Leaders
+            </h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 bg-gradient-to-br from-orange-900/30 to-orange-700/20 rounded-lg border border-orange-400/50 hover:border-orange-300/70 transition-all duration-300 transform hover:scale-105">
+                <div className="text-center space-y-2">
+                  <div className="text-3xl">🔐</div>
+                  <div className="font-bold text-orange-300">Auth0</div>
+                  <div className="text-xs text-orange-200">Secure Authentication</div>
+                  <Badge variant="outline" className="bg-orange-600/20 border-orange-400 text-xs">
+                    {user.user ? '✅ Active' : 'User Profiles'}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-blue-900/30 to-blue-700/20 rounded-lg border border-blue-400/50 hover:border-blue-300/70 transition-all duration-300 transform hover:scale-105">
+                <div className="text-center space-y-2">
+                  <div className="text-3xl">🕷️</div>
+                  <div className="font-bold text-blue-300">Apify</div>
+                  <div className="text-xs text-blue-200">Web Scraping Platform</div>
+                  <Badge variant="outline" className="bg-blue-600/20 border-blue-400 text-xs">
+                    Dynamic Content
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-green-900/30 to-green-700/20 rounded-lg border border-green-400/50 hover:border-green-300/70 transition-all duration-300 transform hover:scale-105">
+                <div className="text-center space-y-2">
+                  <div className="text-3xl">🌐</div>
+                  <div className="font-bold text-green-300">Browserbase</div>
+                  <div className="text-xs text-green-200">AI Browser Automation</div>
+                  <Badge variant="outline" className="bg-green-600/20 border-green-400 text-xs">
+                    Smart Agents
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-br from-purple-900/30 to-purple-700/20 rounded-lg border border-purple-400/50 hover:border-purple-300/70 transition-all duration-300 transform hover:scale-105">
+                <div className="text-center space-y-2">
+                  <div className="text-3xl">🔗</div>
+                  <div className="font-bold text-purple-300">Linkup.so</div>
+                  <div className="text-xs text-purple-200">Real-time D&D Content</div>
+                  <Badge variant="outline" className="bg-green-600/20 border-green-400 text-xs animate-pulse">
+                    ✅ ACTIVE
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-300 mb-3">
+                🏆 <strong>Multi-Prize Strategy:</strong> Integrating cutting-edge technologies for maximum hackathon impact
+              </p>
+              <div className="flex justify-center space-x-2 text-xs">
+                <Badge variant="outline" className="bg-red-600/20 border-red-400">Auth0 Prize Track</Badge>
+                <Badge variant="outline" className="bg-blue-600/20 border-blue-400">Apify Challenge</Badge>
+                <Badge variant="outline" className="bg-green-600/20 border-green-400">Browserbase Innovation</Badge>
+                <Badge variant="outline" className="bg-purple-600/20 border-purple-400">✅ Linkup D&D Enhancement</Badge>
+              </div>
+            </div>
           </div>
 
           {/* Enhanced Feature Showcase */}
@@ -643,6 +816,21 @@ export default function MultiplayerPage() {
             <div className="text-right">
               <div className="text-sm text-purple-300 mb-2">🏆 Hackathon Demo</div>
               <div className="text-xs text-gray-400">MiniMax Speech-02-HD • $2,750 Prize</div>
+              {/* NEW: Sponsor Tech Stack */}
+              <div className="mt-2 flex flex-wrap gap-1">
+                <Badge variant="outline" className="bg-orange-600/20 border-orange-400 text-xs">
+                  🔐 Auth0
+                </Badge>
+                <Badge variant="outline" className="bg-blue-600/20 border-blue-400 text-xs">
+                  🕷️ Apify
+                </Badge>
+                <Badge variant="outline" className="bg-green-600/20 border-green-400 text-xs">
+                  🌐 Browserbase
+                </Badge>
+                <Badge variant="outline" className="bg-purple-600/20 border-purple-400 text-xs">
+                  🔗 Linkup.so
+                </Badge>
+              </div>
             </div>
           </div>
         </div>
@@ -698,6 +886,17 @@ export default function MultiplayerPage() {
                           className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs transition-all duration-300"
                         >
                           🎤 Test Voice
+                        </Button>
+                      </div>
+                    )}
+                    {member.type === 'human' && (
+                      <div className="space-y-1 mt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setShowCharacterSheet(true)}
+                          className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-xs transition-all duration-300"
+                        >
+                          📊 Character Sheet
                         </Button>
                       </div>
                     )}
@@ -974,12 +1173,28 @@ export default function MultiplayerPage() {
                   <div>🤖 AWS MCP Agents</div>
                 </div>
                 
-                <Button
-                  onClick={() => setShowGameGuide(true)}
-                  className="w-full mt-4 bg-yellow-600 hover:bg-yellow-700 text-sm"
-                >
-                  📖 How to Play D&D
-                </Button>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    onClick={() => setShowGameGuide(true)}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-sm"
+                  >
+                    📖 How to Play
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setShowDiceRoller(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-sm"
+                  >
+                    🎲 Roll Dice
+                  </Button>
+
+                  <Button
+                    onClick={() => setShowLinkupPanel(true)}
+                    className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-sm"
+                  >
+                    🔗 Linkup D&D
+                  </Button>
+                </div>
                 
                 <Button
                   onClick={async () => {
@@ -993,7 +1208,7 @@ export default function MultiplayerPage() {
                       console.error("Debug error:", error);
                     }
                   }}
-                  className="w-full mt-2 bg-gray-600 hover:bg-gray-700 text-xs"
+                  className="w-full bg-gray-600 hover:bg-gray-700 text-xs"
                 >
                   🔧 Debug Session
                 </Button>
@@ -1031,6 +1246,81 @@ export default function MultiplayerPage() {
         style={{ display: 'none' }}
       />
       
+      {/* Dice Roller Modal */}
+      {showDiceRoller && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/50">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                  🎲 Advanced Dice Roller
+                </h2>
+                <Button
+                  onClick={() => setShowDiceRoller(false)}
+                  className="bg-gray-600 hover:bg-gray-700"
+                >
+                  ✕ Close
+                </Button>
+              </div>
+
+              <DiceRoller
+                onRollComplete={(result) => {
+                  console.log("🎲 Dice roll result:", result);
+                  // You can add the dice roll to game history or trigger AI responses
+                  const newTurn = {
+                    player_name: session?.human_player || 'Player',
+                    action: 'dice_roll',
+                    dialogue: `Rolled ${result.die}: ${result.roll} + ${result.modifier} = ${result.total}`,
+                    timestamp: new Date().toISOString()
+                  };
+                  setGameHistory(prev => [newTurn, ...prev]);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Character Sheet Modal */}
+      {showCharacterSheet && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/50">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                  📊 Character Sheet
+                </h2>
+                <Button
+                  onClick={() => setShowCharacterSheet(false)}
+                  className="bg-gray-600 hover:bg-gray-700"
+                >
+                  ✕ Close
+                </Button>
+              </div>
+
+              <CharacterSheet
+                character={playerCharacter}
+                onCharacterUpdate={(character) => {
+                  setPlayerCharacter(character);
+                  console.log("💾 Character updated:", character);
+                }}
+                onStatRoll={(stat, roll) => {
+                  console.log(`🎲 ${stat} check:`, roll);
+                  // Add stat roll to game history
+                  const newTurn = {
+                    player_name: session?.human_player || 'Player',
+                    action: 'ability_check',
+                    dialogue: `${stat.charAt(0).toUpperCase() + stat.slice(1)} check: ${roll}`,
+                    timestamp: new Date().toISOString()
+                  };
+                  setGameHistory(prev => [newTurn, ...prev]);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Game Guide Modal */}
       {showGameGuide && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -1205,6 +1495,67 @@ export default function MultiplayerPage() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Linkup Panel Modal */}
+      {showLinkupPanel && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-green-500/50">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-400">
+                  🔗 Linkup.so D&D Enhancement
+                </h2>
+                <Button
+                  onClick={() => setShowLinkupPanel(false)}
+                  className="bg-gray-600 hover:bg-gray-700"
+                >
+                  ✕ Close
+                </Button>
+              </div>
+
+              <LinkupPanel
+                onContentAdded={(content, type) => {
+                  console.log(`🔗 Linkup content added: ${type}`, content);
+                  
+                  // Add Linkup content to game history
+                  const newTurn = {
+                    player_name: '🔗 Linkup.so',
+                    action: `web_search_${type}`,
+                    dialogue: `📚 Found D&D content: ${content.substring(0, 200)}...`,
+                    timestamp: new Date().toISOString()
+                  };
+                  setGameHistory(prev => [newTurn, ...prev]);
+                  
+                  // Show success notification
+                  const notification = document.createElement('div');
+                  notification.className = 'fixed top-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-50 animate-bounce';
+                  notification.innerHTML = `
+                    <div class="flex items-center gap-2">
+                      <span class="text-xl">🔗</span>
+                      <div>
+                        <div class="font-bold">Linkup Content Added!</div>
+                        <div class="text-sm">Enhanced with real-time web content</div>
+                      </div>
+                    </div>
+                  `;
+                  document.body.appendChild(notification);
+                  
+                  setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                      document.body.removeChild(notification);
+                    }
+                  }, 4000);
+                  
+                  // Auto-close modal after adding content
+                  setTimeout(() => {
+                    setShowLinkupPanel(false);
+                  }, 1000);
+                }}
+              />
             </div>
           </div>
         </div>

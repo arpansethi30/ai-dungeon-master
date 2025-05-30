@@ -43,6 +43,9 @@ from app.services.apify_integration import (
 # Include Multiplayer API
 from app.api import multiplayer
 
+# 🔗 Include Linkup.so API for D&D content enhancement
+from app.api.linkup.routes import router as linkup_router
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Chronicles of AI - Agentic AI D&D System",
@@ -1207,6 +1210,7 @@ async def serve_minimax_audio(filename: str):
 
 # Register API routers - Remove invalid imports, keep only working ones
 app.include_router(multiplayer.router, prefix="/api/multiplayer", tags=["multiplayer"])
+app.include_router(linkup_router, prefix="/api/linkup", tags=["linkup"])
 
 if __name__ == "__main__":
     print("🤖 Starting Chronicles of AI - Agentic AI D&D System...")
